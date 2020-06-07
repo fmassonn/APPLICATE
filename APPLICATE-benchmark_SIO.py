@@ -33,7 +33,7 @@ import scipy.stats
 plt.close("all")    
 
 # Domain and variable definition
-hemi = "north"
+hemi = "south"
 diag = "extent"
 
 # Image resolution
@@ -301,7 +301,11 @@ fig, axes = plt.subplots(1, 2, figsize = (10, 5), dpi = 300)# dpi)
 
 ax = axes[0]
 ax.grid()
-ax.set_ylim(0.0, 8.0)
+if hemi == "north":
+    ax.set_ylim(0.0, 8.0)
+elif hemi == "south":
+    ax.set_ylim(15.0, 22.0)
+    
 ax.plot(forecast_year, forecast_mean, color = [1, 0.5, 0.0], marker = "s", 
         label = "Hindcasts")
 ax.plot(forecast_year, verif_mean, color = [0.0, 0.0, 0.0],  marker = "s", 
@@ -322,8 +326,12 @@ ax.plot((forecast_mean[-1], forecast_mean[-1]), (-1e9, 1e9), "red",
 
 
 ax.set_title("Verification and bias-correction")
-ax.set_xlim(2.0, 8.0)
-ax.set_ylim(2.0, 8.0)
+if hemi == "north":
+    ax.set_xlim(2.0, 8.0)
+    ax.set_ylim(2.0, 8.0)
+elif hemi == "south":
+    ax.set_xlim(17.0, 20.0)
+    ax.set_ylim(17.0, 20.0)
 ax.set_xlabel("Forecast [10$^6$ km$^2$]")
 ax.set_ylabel("Verification [10$^6$ km$^2$]")
 ax.scatter(forecast_mean, verif_mean, 200, marker = "s", color = "green", \

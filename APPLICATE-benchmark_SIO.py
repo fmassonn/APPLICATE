@@ -37,7 +37,7 @@ hemi = "north"
 diag = "extent"
 
 # Image resolution
-dpi = 100
+dpi = 300
 
 # Estimation of background.
 # Order of detrending. 0 = plain climatology, 1 = linear, 2 = quadratic, ...
@@ -161,7 +161,7 @@ def damped_anomaly_persistence_forecast(inidate):
     
     # Construction of the background and uncertainty
     background = np.full((nyear, nday), np.nan)
-    std        = np.full((nyear, nday), np.nan) 
+    std_bck        = np.full((nyear, nday), np.nan) 
     
     for d in range(nday):
         series = data[(yearbbk - yearb):(yearebk - yearb  + 1), d]
@@ -179,7 +179,7 @@ def damped_anomaly_persistence_forecast(inidate):
         # Uncertainty estimates
         XX = np.matrix([np.arange(yearb, yeare + 1) ** (order - i) for i in range(order + 1)]).transpose()
         covfit = XX * np.matrix(cov) * XX.transpose()
-        std[:, d] = np.array([np.sqrt(covfit[i, i]) for i in range(len(XX))])
+        std_bck[:, d] = np.array([np.sqrt(covfit[i, i]) for i in range(len(XX))])
         
         #plt.plot(np.arange(yearb, yeare + 1), data[:, d])
         #plt.plot(np.arange(yearb, yeare + 1), background[:, d])
@@ -193,15 +193,16 @@ def damped_anomaly_persistence_forecast(inidate):
     # Anomalies are the raw values minus the background
     data_ano = data - background
     
-    # Uncertainty estimates
+    # Standard deviation of anomalies
     
-    #std = np.full(nday, np.nan)
-    #for d in range(nday):
-    #    series = data_ano[(yearbbk - yearb):(yearebk- yearb  + 1), d]
-    #    std[d] = np.nanstd(series) # np.sqrt(sum(~np.isnan(series)))
-    
-    # Computation of autocorrelation of anomalies at day d with inidoy
-    # Also based on selecte years
+    std_ano = np.full(nday, np.nan)
+    for d in range(nday):
+        series = data_ano[(yearbbk - yearb):(yearebk- yearb  + 1), d]
+        std_ano[d] = np.nanstd(series) # np.sqrt(sum(~np.isnan(series)))
+
+    # Computation of standard deviation of anomalies, and 
+    # autocorrelation of anomalies at day d with inidoy
+    # Also based on selected years
     r = np.full(nday, np.nan)
     for d in range(nday):
         x1tmp = data_ano[(yearbbk - yearb):(yearebk- yearb  + 1), d]
@@ -211,7 +212,6 @@ def damped_anomaly_persistence_forecast(inidate):
         x2 = x2tmp[~np.isnan(x1tmp * x2tmp)]
         
         r[d] = np.corrcoef(x1, x2)[0, 1]
-        
         del x1tmp, x2tmp, x1, x2
     
     # Construction of forecasts
@@ -220,8 +220,9 @@ def damped_anomaly_persistence_forecast(inidate):
     dates_forecast = list()
     verif_data     = list()
     for d in range(inidoy, nday):
-        forecast.append(r[d] * data_ano[iniyear - yearb, inidoy] + background[iniyear - yearb, d])
-        std_forecast.append(np.abs(r[d] * std[iniyear - yearb, inidoy] - std[iniyear - yearb, d]))
+        forecast.append(r[d] * data_ano[iniyear - yearb, inidoy] + 
+                        background[iniyear - yearb, d])
+        std_forecast.append(np.abs(r[d] * std_bck[iniyear - yearb, inidoy] - std_bck[iniyear - yearb, d]))
         
         # Create date time axis for forecast
         tmp = datetime.date(2005, 1, 1) + timedelta(days = d)
@@ -263,7 +264,7 @@ for inidate in startdates:
         
     # Plot current year
     plt.close("all")
-    fig, ax= plt.subplots(1, 1, figsize = (6, 6), dpi = 100)
+    fig, ax= plt.subplots(1, 1, figsize = (6, 6), dpi = dpi)
     
     a = ax
     a.grid()
@@ -291,26 +292,45 @@ for inidate in startdates:
     a.set_ylabel("$10^6$ km²")
     a.set_title("Damped anomaly persistence forecast of\ndaily Arctic sea ice extent\ninitialized on " + str(inidate))
     fig.autofmt_xdate(rotation=45)
-    fig.savefig("./figs/forecast_order" + str(order) + "_" + str(inidate) + ".png")
+    fig.savefig("./figs/forecast_order" + str(order) + "_" + 
+                str(inidate) + ".png")
     
 
 # Verification and bias correction
-fig, ax = plt.subplots(1, 1, figsize = (6, 6), dpi = 100)
+fig, axes = plt.subplots(1, 2, figsize = (10, 5), dpi = 300)# dpi)
+
+ax = axes[0]
+ax.grid()
+ax.set_ylim(0.0, 8.0)
+ax.plot(forecast_year, forecast_mean, color = [1, 0.5, 0.0], marker = "s", 
+        label = "Hindcasts")
+ax.plot(forecast_year, verif_mean, color = [0.0, 0.0, 0.0],  marker = "s", 
+        label = "Verification data")
+ax.set_ylabel("10$^6$ km$^2$")
+ax.set_title("September mean sea ice extent")
+ax.legend()
+
+
+
+ax = axes[1]
 ax.grid()
 ax.plot((-1e9, 1e9), (-1e9, 1e9), color = "k", lw = 1, label = "y = x")
 
-ax.plot((forecast_mean[-1], forecast_mean[-1]), (-1e9, 1e9), "red", label = forecast_year[-1])
+ax.plot((forecast_mean[-1], forecast_mean[-1]), (-1e9, 1e9), "red", 
+        label = forecast_year[-1])
 
 
 
 ax.set_title("Verification and bias-correction")
 ax.set_xlim(2.0, 8.0)
 ax.set_ylim(2.0, 8.0)
-ax.set_xlabel("Forecast")
-ax.set_ylabel("Verification")
-ax.scatter(forecast_mean, verif_mean, 200, marker = "s", color = "green", alpha = 0.5, label = "Hindcasts")
+ax.set_xlabel("Forecast [10$^6$ km$^2$]")
+ax.set_ylabel("Verification [10$^6$ km$^2$]")
+ax.scatter(forecast_mean, verif_mean, 200, marker = "s", color = "green", \
+           alpha = 0.5, label = "Hindcasts")
 [ax.text(   forecast_mean[j], verif_mean[j], str(forecast_year[j]), 
-         color = "white", ha = "center", va = "center", fontsize = 6) for j in range(len(forecast_mean)  -1)]
+         color = "white", ha = "center", va = "center", fontsize = 5) \
+    for j in range(len(forecast_mean)  -1)]
     
 # Regress forecasts on verification to determine bias-corrected forecast
 x = np.array(forecast_mean[:-1])
@@ -325,6 +345,11 @@ bhat = ybar - ahat * xbar
 yhat = ahat * x + bhat
 res = y - yhat
 se2 = 1.0 / (n - 2) * np.sum(res ** 2)
+
+# Detrend
+xd = x - np.polyval(np.polyfit(np.arange(len(x)), x, 2), np.arange(len(x)))
+yd = y - np.polyval(np.polyfit(np.arange(len(y)), y, 2), np.arange(len(y)))
+
 # Prediction Interval
 def spred(xin):
     return np.sqrt(se2 * (1 + 1 / n + (xin - xbar) ** 2 / np.sum(xtil ** 2)))
@@ -332,13 +357,54 @@ def spred(xin):
 xx = np.arange(0.0, 10.0)
 fit = ahat * xx + bhat
 ax.plot(xx, fit, color = "green", label = "Regression")
-ax.fill_between(xx, fit - 1.96 * spred(xx), fit + 1.96 * spred(xx), color = "green", alpha = 0.2, lw = 0)
+ax.fill_between(xx, fit - 1.96 * spred(xx), fit + 1.96 * spred(xx), 
+                color = "green", alpha = 0.2, lw = 0, 
+                label = "Prediction\n95% confidence interval")
+
+# Display correlations
+ax.text(5.5, 3.5, "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
+        "\n(detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")")
 
 # Print re-processed forecast
-ax.text(6.0, 3.0, str(forecast_year[-1]) + " forecast:\n" + 
+ax.text(5.5, 2.5    , str(forecast_year[-1]) + " forecast:\n" + 
         str(np.round(ahat * forecast_mean[-1] + bhat, 2)) + 
-        " [" + str(np.round(ahat * forecast_mean[-1] + bhat - 1.96 * spred(x[-1]), 2)) +  " - " +
-               str(np.round(ahat * forecast_mean[-1] + bhat + 1.96 * spred(x[-1]), 2)) + "]\n" + "$10^6$ km$^2$")
+        " [" + str(np.round(ahat * forecast_mean[-1] + bhat - 
+                            1.96 * spred(x[-1]), 2)) +  " - " +
+               str(np.round(ahat * forecast_mean[-1] + bhat + 
+                            1.96 * spred(x[-1]), 2)) + "]\n" + "$10^6$ km$^2$")
 
-ax.legend()
+ax.legend(loc = "upper left")
+
 fig.savefig("./figs/forecast_mean.png")
+
+
+
+
+# Presentation of forecast as a PDF
+fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = 300)
+ax.grid()
+ax.set_xlim(2.0, 8.0)
+ax.set_ylim(-0.2, 1.0)
+ax.set_xlabel("September mean sea ice extent [10$^6$ km$^2$]")
+
+mu = ahat * forecast_mean[-1] + bhat
+sig= spred(x[-1])
+
+# All time minimum until now
+alltimemin = np.min(verif_mean[:-1])
+
+xx = np.linspace(0.0, 10.0, 10000)
+ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
+ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
+ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time minimum")
+#ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
+#ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
+ax.fill_between(np.linspace(0.0, alltimemin), 
+                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin), mu, sig), color = "red", alpha = 0.5)
+
+# Print CDF
+cdf = scipy.stats.norm.cdf(alltimemin, mu, sig) * 100.0
+ax.text(2.5, 0.0, str(np.round(cdf, 1)) + " %", va = "top", color = "red", alpha = 0.8)
+ax.legend()
+fig.tight_layout()
+fig.savefig("./figs/presentation.png")

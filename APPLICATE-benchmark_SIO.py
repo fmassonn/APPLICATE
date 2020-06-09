@@ -137,7 +137,6 @@ def damped_anomaly_persistence_forecast(inidate):
     if inidate.day == 29 and inidate.month == 2:
         inidate += timedelta(days = 1)
         
-    print("Forecasting " + str(inidate))
     # Year, month and day of initial condition
     iniyear = inidate.year
     inimon  = inidate.month
@@ -242,39 +241,70 @@ def damped_anomaly_persistence_forecast(inidate):
     
 
 
-startdates = [datetime.date(y, 6, 1) for y in np.arange(1991, 2020 + 1)]
-
-#startdates = [datetime.date(2020, 1, 1) + timedelta(days = d) \
-#              for d in range((datetime.date(2020, 6, 1) - datetime.date(2020, 1, 1)).days)]
 
 
+# Forecasting
 
+startdates = [datetime.date(2020, 6, 1) + timedelta(days = d) \
+              for d in range((datetime.date(2020, 6, 2) - datetime.date(2020, 6, 1)).days)]
 
-forecast_mean = list()
-forecast_year = list()
-verif_mean    = list()
+# First year for bias correction
+year_ppb = 1991
+
 # Next, we loop over all initial times and issue a lead-time dependent forecast
 for inidate in startdates:
     
-    dates_forecast, forecast, std_forecast, verif_data = damped_anomaly_persistence_forecast(inidate)
+    # Year, month and day of initial condition
+    iniyear = inidate.year
+    inimon  = inidate.month
+    iniday  = inidate.day
     
-    # Extract september mean
-    forecast_mean.append(np.mean([f for d, f in zip(dates_forecast, forecast) if d.month == 9]))
-    forecast_year.append(inidate.year)
-    # In data as well
-    verif_mean.append(np.mean([v for d, v in zip(dates_forecast, verif_data) if d.month == 9]))
+    
+    # Issue the raw forecast
+    print("Forecasting " + str(inidate))
+    dates_forecast, forecast, std_forecast, verif_data = \
+           damped_anomaly_persistence_forecast(inidate)
+
+    # Compute target statistic
+    forecast_mean = np.mean([f for d, f in zip(dates_forecast, forecast) \
+                             if d.month == 9 and d.year == iniyear])
+    forecast_year = int(np.mean([d.year for d, f in zip(dates_forecast, forecast) 
+    if d.month == 9 and d.year == iniyear]))
+    # Start forecast verification and recalibration for that day
+    
+    hindcast_mean = list()
+    hindcast_year = list()
+    verif_hindcast_mean    = list()
+
+    for year in np.arange(year_ppb, iniyear):
+        inidate_hindcast = datetime.date(year, inimon, iniday)
+        # Reforecast
+        print("  Hindcasting " + str(inidate_hindcast))
+        inidate_hindcast = \
+        dates_hindcast, hindcast, std_hindcast, verif_hindcast = \
+              damped_anomaly_persistence_forecast(inidate_hindcast)
+              
+    
+        # Extract september mean
+        hindcast_mean.append(np.mean([f for d, f in zip(dates_hindcast, hindcast) if d.month == 9]))
+        hindcast_year.append(int(np.mean([d.year for d, f in zip(dates_hindcast, hindcast) if d.month == 9])))
+
+
+        # In data as well
+        verif_hindcast_mean.append(np.mean([v for d, v in zip(dates_forecast, verif_hindcast) if d.month == 9]))
+    
     
     # Prepare plots
     # -------------
         
-    # Plot current year
+    # Plot observed
     plt.close("all")
     fig, ax= plt.subplots(1, 1, figsize = (6, 6), dpi = dpi)
     
     a = ax
     a.grid()
     a.plot([r[0] for r in rawdata], [r[1] for r in rawdata] , color = [0.0, 0.0, 0.0], label = "Observed")
-    a.plot(dates_forecast, forecast, "lightblue", label = "Best forecast estimate")
+    a.plot(dates_forecast, forecast, "lightblue", label = "Best estimate")
     
     # Plot uncertainty
     myzs = [50, 95, 99] # quantiles
@@ -296,158 +326,161 @@ for inidate in startdates:
     a.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
     a.set_ylabel("$10^6$ km²")
     a.set_title("Damped anomaly persistence forecast of\ndaily Arctic sea ice extent\ninitialized on " + str(inidate))
-    fig.autofmt_xdate(rotation=45)
+    fig.autofmt_xdate(rotation = 45)
     fig.savefig("./figs/forecast_order" + str(order) + "_" + 
                 str(inidate) + ".png")
     
-
-# Verification and bias correction
-fig, axes = plt.subplots(1, 2, figsize = (10, 5), dpi = 300)# dpi)
-
-ax = axes[0]
-ax.grid()
-if hemi == "north":
-    ax.set_ylim(0.0, 8.0)
-elif hemi == "south":
-    ax.set_ylim(15.0, 22.0)
     
-ax.plot(forecast_year, forecast_mean, color = [1, 0.5, 0.0], marker = "s", 
-        label = "Hindcasts")
-ax.plot(forecast_year, verif_mean, color = [0.0, 0.0, 0.0],  marker = "s", 
-        label = "Verification data")
-ax.set_ylabel("10$^6$ km$^2$")
-ax.set_title("September mean sea ice extent")
-ax.legend()
-
-
-
-ax = axes[1]
-ax.grid()
-ax.plot((-1e9, 1e9), (-1e9, 1e9), color = "k", lw = 1, label = "y = x")
-
-ax.plot((forecast_mean[-1], forecast_mean[-1]), (-1e9, 1e9), "red", 
-        label = forecast_year[-1])
-
-
-
-ax.set_title("Verification and bias-correction")
-if hemi == "north":
-    ax.set_xlim(2.0, 8.0)
-    ax.set_ylim(2.0, 8.0)
-elif hemi == "south":
-    ax.set_xlim(17.0, 20.0)
-    ax.set_ylim(17.0, 20.0)
-ax.set_xlabel("Forecast [10$^6$ km$^2$]")
-ax.set_ylabel("Verification [10$^6$ km$^2$]")
-ax.scatter(forecast_mean, verif_mean, 200, marker = "s", color = "green", \
-           alpha = 0.5, label = "Hindcasts")
-[ax.text(   forecast_mean[j], verif_mean[j], str(forecast_year[j]), 
-         color = "white", ha = "center", va = "center", fontsize = 5) \
-    for j in range(len(forecast_mean)  -1)]
+    # Verification and bias correction.
+    fig, axes = plt.subplots(1, 2, figsize = (10, 5), dpi = 300)# dpi)
     
-# Regress forecasts on verification to determine bias-corrected forecast
-x = np.array(forecast_mean[:-1])
-y = np.array(verif_mean[:-1])
-n = len(x)
-xbar = np.mean(x)
-ybar = np.mean(y)
-xtil = x - xbar
-ytil = y - ybar
-ahat = np.sum(xtil * ytil) / np.sum(xtil ** 2)
-bhat = ybar - ahat * xbar
-yhat = ahat * x + bhat
-res = y - yhat
-se2 = 1.0 / (n - 2) * np.sum(res ** 2)
-
-# Detrend
-xd = x - np.polyval(np.polyfit(np.arange(len(x)), x, 2), np.arange(len(x)))
-yd = y - np.polyval(np.polyfit(np.arange(len(y)), y, 2), np.arange(len(y)))
-
-# Prediction Interval
-def spred(xin):
-    return np.sqrt(se2 * (1 + 1 / n + (xin - xbar) ** 2 / np.sum(xtil ** 2)))
-
-xx = np.arange(0.0, 10.0)
-fit = ahat * xx + bhat
-ax.plot(xx, fit, color = "green", label = "Regression")
-ax.fill_between(xx, fit - 1.96 * spred(xx), fit + 1.96 * spred(xx), 
-                color = "green", alpha = 0.2, lw = 0, 
-                label = "Prediction\n95% confidence interval")
-
-# Display correlations
-ax.text(5.5, 3.5, "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
-        "\n(detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")")
-
-# Print re-processed forecast
-ax.text(5.5, 2.5    , str(forecast_year[-1]) + " forecast:\n" + 
-        str(np.round(ahat * forecast_mean[-1] + bhat, 2)) + 
-        " [" + str(np.round(ahat * forecast_mean[-1] + bhat - 
-                            1.96 * spred(x[-1]), 2)) +  " - " +
-               str(np.round(ahat * forecast_mean[-1] + bhat + 
-                            1.96 * spred(x[-1]), 2)) + "]\n" + "$10^6$ km$^2$")
-
-ax.legend(loc = "upper left")
-
-fig.savefig("./figs/forecast_mean.png")
-
-
-
-
-# Presentation of forecast as a PDF
-fig, ax = plt.subplots(1, 1, figsize = (5, 3), dpi = 300)
-ax.grid()
-if hemi == "north":
-    ax.set_xlim(2.0, 10.0)
-elif hemi == "south":
-    ax.set_xlim(15.0, 22.0)
-ax.set_ylim(-0.2, 1.0)
-ax.set_xlabel("September mean sea ice extent [10$^6$ km$^2$]")
-
-mu = ahat * forecast_mean[-1] + bhat
-sig= spred(x[-1])
-
-# All time minimum until now
-alltimemin = np.min(verif_mean[:-1])
-
-# Terciles
-terciles = np.percentile(verif_mean[:-1], [100 / 3, 200 / 3])
-
-
-xx = np.linspace(0.0, 30.0, 10000)
-ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
-ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
-
-# All time min
-ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time min.")
-ax.arrow(alltimemin, - 0.07, -0.4, 0.0, color = "r", head_width = 0.05)
-# Print CDF
-cdf = scipy.stats.norm.cdf(alltimemin, mu, sig) * 100.0
-ax.text(alltimemin, -0.1, str(np.round(cdf, 1)) + " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
-
-#ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
-#ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
-#ax.fill_between(np.linspace(0.0, alltimemin, 10000), 
-#                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin, 10000), mu, sig), color = "orange", alpha = 0.5)
-# First tercile
-ax.fill_between(np.linspace(0.0, terciles[0], 10000), 
-                scipy.stats.norm.pdf(np.linspace(0.0, terciles[0], 10000), \
-                                     mu, sig), color = "red", alpha = 0.5, lw = 0.0, \
-                                     label = "1st tercile (" + \
-                                     str(np.round(scipy.stats.norm.cdf(terciles[0], mu, sig) * 100.0, 1)) + " %)")
-# Second tercile
-ax.fill_between(np.linspace(terciles[0], terciles[1], 10000), 
-                scipy.stats.norm.pdf(np.linspace(terciles[0], terciles[1], \
-                                    10000), mu, sig), color = "black",
-                                                 alpha = 0.1, lw = 0.0,
-                                                 label = "2nd tercile (" \
-                                                 + str(np.round((scipy.stats.norm.cdf(terciles[1], mu, sig) - scipy.stats.norm.cdf(terciles[0], mu, sig)) * 100, 1)) + " %)")
-# Third tercile
-ax.fill_between(np.linspace(terciles[1], 30, 10000), 
-                scipy.stats.norm.pdf(np.linspace(terciles[1], 30, 10000), 
-                                     mu, sig), color = "blue", alpha = 0.5, lw = 0.0, 
-                                     label = "3rd tercile (" + str(np.round((1 - scipy.stats.norm.cdf(terciles[1], mu, sig)) * 100, 1)) + " %)")
-ax.legend(ncol = 1)
-ax.set_title("Forecast PDF (initialized " + str(inidate) + ")")
-ax.set_axisbelow(True)
-fig.tight_layout()
-fig.savefig("./figs/presentation.png")
+    ax = axes[0]
+    ax.grid()
+    if hemi == "north":
+        ax.set_ylim(0.0, 8.0)
+    elif hemi == "south":
+        ax.set_ylim(15.0, 22.0)
+        
+    ax.plot(hindcast_year, hindcast_mean, color = [1, 0.5, 0.0], marker = "s", 
+            label = "Hindcasts")
+    ax.plot(hindcast_year, verif_hindcast_mean, color = [0.0, 0.0, 0.0],  marker = "s", 
+            label = "Verification data")
+    ax.set_ylabel("10$^6$ km$^2$")
+    ax.set_title("September mean sea ice extent")
+    ax.legend()
+    
+    
+    
+    ax = axes[1]
+    ax.grid()
+    ax.plot((-1e9, 1e9), (-1e9, 1e9), color = "k", lw = 1, label = "y = x")
+    
+    ax.plot((forecast_mean, forecast_mean), (-1e9, 1e9), "red", 
+            label = forecast_year)
+    
+    
+    
+    ax.set_title("Verification and bias-correction")
+    if hemi == "north":
+        ax.set_xlim(2.0, 8.0)
+        ax.set_ylim(2.0, 8.0)
+    elif hemi == "south":
+        ax.set_xlim(17.0, 20.0)
+        ax.set_ylim(17.0, 20.0)
+    ax.set_xlabel("Forecast [10$^6$ km$^2$]")
+    ax.set_ylabel("Verification [10$^6$ km$^2$]")
+    ax.scatter(hindcast_mean, verif_hindcast_mean, 200, marker = "s", color = "green", \
+               alpha = 0.5, label = "Hindcasts")
+    [ax.text(   hindcast_mean[j], verif_hindcast_mean[j], str(hindcast_year[j]), 
+             color = "white", ha = "center", va = "center", fontsize = 5) \
+        for j in range(len(hindcast_mean)  -1)]
+        
+    # Regress forecasts on verification to determine bias-corrected forecast
+    x = np.array(hindcast_mean)
+    y = np.array(verif_hindcast_mean)
+    n = len(x)
+    xbar = np.mean(x)
+    ybar = np.mean(y)
+    xtil = x - xbar
+    ytil = y - ybar
+    ahat = np.sum(xtil * ytil) / np.sum(xtil ** 2)
+    bhat = ybar - ahat * xbar
+    yhat = ahat * x + bhat
+    res = y - yhat
+    se2 = 1.0 / (n - 2) * np.sum(res ** 2)
+    
+    # Detrend
+    xd = x - np.polyval(np.polyfit(np.arange(len(x)), x, 2), np.arange(len(x)))
+    yd = y - np.polyval(np.polyfit(np.arange(len(y)), y, 2), np.arange(len(y)))
+    
+    # Prediction Interval
+    def spred(xin):
+        return np.sqrt(se2 * (1 + 1 / n + (xin - xbar) ** 2 / np.sum(xtil ** 2)))
+    
+    xx = np.arange(0.0, 10.0)
+    fit = ahat * xx + bhat
+    ax.plot(xx, fit, color = "green", label = "Regression")
+    ax.fill_between(xx, fit - 1.96 * spred(xx), fit + 1.96 * spred(xx), 
+                    color = "green", alpha = 0.2, lw = 0, 
+                    label = "Prediction\n95% confidence interval")
+    
+    # Display correlations
+    ax.text(5.5, 3.5, "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
+            "\n(detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")")
+    
+    # Print re-processed forecast
+    ax.text(5.5, 2.5    , str(forecast_year) + " forecast:\n" + 
+            str(np.round(ahat * forecast_mean + bhat, 2)) + 
+            " [" + str(np.round(ahat * forecast_mean + bhat - 
+                                1.96 * spred(forecast_mean), 2)) +  " - " +
+                   str(np.round(ahat * forecast_mean + bhat + 
+                                1.96 * spred(forecast_mean), 2)) + "]\n" + "$10^6$ km$^2$")
+    
+    ax.legend(loc = "upper left")
+    
+    fig.savefig("./figs/verif-postproc_order" + str(order) + "_" + 
+                    str(inidate) + ".png")
+    
+    
+    
+    
+    
+    # Presentation of outlook
+    fig, ax = plt.subplots(1, 1, figsize = (5, 3), dpi = 300)
+    ax.grid()
+    if hemi == "north":
+        ax.set_xlim(2.0, 10.0)
+    elif hemi == "south":
+        ax.set_xlim(15.0, 22.0)
+    ax.set_ylim(-0.2, 1.0)
+    ax.set_xlabel("September mean sea ice extent [10$^6$ km$^2$]")
+    
+    mu = ahat * forecast_mean + bhat
+    sig= spred(forecast_mean)
+    
+    # All time minimum until now
+    alltimemin = np.min(verif_hindcast_mean)
+    
+    # Terciles
+    terciles = np.percentile(verif_hindcast_mean, [100 / 3, 200 / 3])
+    
+    
+    xx = np.linspace(0.0, 30.0, 10000)
+    ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
+    ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
+    
+    # All time min
+    ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time min.")
+    ax.arrow(alltimemin, - 0.07, -0.4, 0.0, color = "r", head_width = 0.05)
+    # Print CDF
+    cdf = scipy.stats.norm.cdf(alltimemin, mu, sig) * 100.0
+    ax.text(alltimemin, -0.1, str(np.round(cdf, 1)) + " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
+    
+    #ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
+    #ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
+    #ax.fill_between(np.linspace(0.0, alltimemin, 10000), 
+    #                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin, 10000), mu, sig), color = "orange", alpha = 0.5)
+    # First tercile
+    ax.fill_between(np.linspace(0.0, terciles[0], 10000), 
+                    scipy.stats.norm.pdf(np.linspace(0.0, terciles[0], 10000), \
+                                         mu, sig), color = "red", alpha = 0.5, lw = 0.0, \
+                                         label = "1st tercile (" + \
+                                         str(np.round(scipy.stats.norm.cdf(terciles[0], mu, sig) * 100.0, 1)) + " %)")
+    # Second tercile
+    ax.fill_between(np.linspace(terciles[0], terciles[1], 10000), 
+                    scipy.stats.norm.pdf(np.linspace(terciles[0], terciles[1], \
+                                        10000), mu, sig), color = "black",
+                                                     alpha = 0.1, lw = 0.0,
+                                                     label = "2nd tercile (" \
+                                                     + str(np.round((scipy.stats.norm.cdf(terciles[1], mu, sig) - scipy.stats.norm.cdf(terciles[0], mu, sig)) * 100, 1)) + " %)")
+    # Third tercile
+    ax.fill_between(np.linspace(terciles[1], 30, 10000), 
+                    scipy.stats.norm.pdf(np.linspace(terciles[1], 30, 10000), 
+                                         mu, sig), color = "blue", alpha = 0.5, lw = 0.0, 
+                                         label = "3rd tercile (" + str(np.round((1 - scipy.stats.norm.cdf(terciles[1], mu, sig)) * 100, 1)) + " %)")
+    ax.legend(ncol = 1)
+    ax.set_title("Forecast PDF (initialized " + str(inidate) + ")")
+    ax.set_axisbelow(True)
+    fig.tight_layout()
+    fig.savefig("./figs/outlook_order" + str(order) + "_" + 
+                    str(inidate) + ".png")

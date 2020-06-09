@@ -33,7 +33,7 @@ import scipy.stats
 plt.close("all")    
 
 # Domain and variable definition
-hemi = "south"
+hemi = "north"
 diag = "extent"
 
 # Image resolution
@@ -244,6 +244,11 @@ def damped_anomaly_persistence_forecast(inidate):
 
 startdates = [datetime.date(y, 6, 1) for y in np.arange(1991, 2020 + 1)]
 
+#startdates = [datetime.date(2020, 1, 1) + timedelta(days = d) \
+#              for d in range((datetime.date(2020, 6, 1) - datetime.date(2020, 1, 1)).days)]
+
+
+
 
 forecast_mean = list()
 forecast_year = list()
@@ -391,7 +396,10 @@ fig.savefig("./figs/forecast_mean.png")
 # Presentation of forecast as a PDF
 fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = 300)
 ax.grid()
-ax.set_xlim(2.0, 8.0)
+if hemi == "north":
+    ax.set_xlim(2.0, 8.0)
+elif hemi == "south":
+    ax.set_xlim(15.0, 22.0)
 ax.set_ylim(-0.2, 1.0)
 ax.set_xlabel("September mean sea ice extent [10$^6$ km$^2$]")
 
@@ -401,18 +409,18 @@ sig= spred(x[-1])
 # All time minimum until now
 alltimemin = np.min(verif_mean[:-1])
 
-xx = np.linspace(0.0, 10.0, 10000)
+xx = np.linspace(0.0, 30.0, 10000)
 ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
 ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
 ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time minimum")
 #ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
 #ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
-ax.fill_between(np.linspace(0.0, alltimemin), 
-                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin), mu, sig), color = "red", alpha = 0.5)
+ax.fill_between(np.linspace(0.0, alltimemin, 10000), 
+                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin, 10000), mu, sig), color = "red", alpha = 0.5)
 
 # Print CDF
 cdf = scipy.stats.norm.cdf(alltimemin, mu, sig) * 100.0
-ax.text(2.5, 0.0, str(np.round(cdf, 1)) + " %", va = "top", color = "red", alpha = 0.8)
+ax.text(alltimemin, 0.0, str(np.round(cdf, 1)) + " %", va = "top", ha = "right", color = "red", alpha = 0.8)
 ax.legend()
 fig.tight_layout()
 fig.savefig("./figs/presentation.png")

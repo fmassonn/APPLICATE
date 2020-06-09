@@ -394,10 +394,10 @@ fig.savefig("./figs/forecast_mean.png")
 
 
 # Presentation of forecast as a PDF
-fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = 300)
+fig, ax = plt.subplots(1, 1, figsize = (5, 3), dpi = 300)
 ax.grid()
 if hemi == "north":
-    ax.set_xlim(2.0, 8.0)
+    ax.set_xlim(2.0, 10.0)
 elif hemi == "south":
     ax.set_xlim(15.0, 22.0)
 ax.set_ylim(-0.2, 1.0)
@@ -409,18 +409,45 @@ sig= spred(x[-1])
 # All time minimum until now
 alltimemin = np.min(verif_mean[:-1])
 
+# Terciles
+terciles = np.percentile(verif_mean[:-1], [100 / 3, 200 / 3])
+
+
 xx = np.linspace(0.0, 30.0, 10000)
 ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
 ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
-ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time minimum")
-#ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
-#ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
-ax.fill_between(np.linspace(0.0, alltimemin, 10000), 
-                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin, 10000), mu, sig), color = "red", alpha = 0.5)
 
+# All time min
+ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time min.")
+ax.arrow(alltimemin, - 0.07, -0.4, 0.0, color = "r", head_width = 0.05)
 # Print CDF
 cdf = scipy.stats.norm.cdf(alltimemin, mu, sig) * 100.0
-ax.text(alltimemin, 0.0, str(np.round(cdf, 1)) + " %", va = "top", ha = "right", color = "red", alpha = 0.8)
-ax.legend()
+ax.text(alltimemin, -0.1, str(np.round(cdf, 1)) + " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
+
+#ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
+#ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
+#ax.fill_between(np.linspace(0.0, alltimemin, 10000), 
+#                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin, 10000), mu, sig), color = "orange", alpha = 0.5)
+# First tercile
+ax.fill_between(np.linspace(0.0, terciles[0], 10000), 
+                scipy.stats.norm.pdf(np.linspace(0.0, terciles[0], 10000), \
+                                     mu, sig), color = "red", alpha = 0.5, lw = 0.0, \
+                                     label = "1st tercile (" + \
+                                     str(np.round(scipy.stats.norm.cdf(terciles[0], mu, sig) * 100.0, 1)) + " %)")
+# Second tercile
+ax.fill_between(np.linspace(terciles[0], terciles[1], 10000), 
+                scipy.stats.norm.pdf(np.linspace(terciles[0], terciles[1], \
+                                    10000), mu, sig), color = "black",
+                                                 alpha = 0.1, lw = 0.0,
+                                                 label = "2nd tercile (" \
+                                                 + str(np.round((scipy.stats.norm.cdf(terciles[1], mu, sig) - scipy.stats.norm.cdf(terciles[0], mu, sig)) * 100, 1)) + " %)")
+# Third tercile
+ax.fill_between(np.linspace(terciles[1], 30, 10000), 
+                scipy.stats.norm.pdf(np.linspace(terciles[1], 30, 10000), 
+                                     mu, sig), color = "blue", alpha = 0.5, lw = 0.0, 
+                                     label = "3rd tercile (" + str(np.round((1 - scipy.stats.norm.cdf(terciles[1], mu, sig)) * 100, 1)) + " %)")
+ax.legend(ncol = 1)
+ax.set_title("Forecast PDF (initialized " + str(inidate) + ")")
+ax.set_axisbelow(True)
 fig.tight_layout()
 fig.savefig("./figs/presentation.png")

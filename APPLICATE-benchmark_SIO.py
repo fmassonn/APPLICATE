@@ -36,6 +36,10 @@ if not os.path.isdir("./figs"):
 # Close all figures
 plt.close("all")    
 
+# Mode. oper = downloads latest data and produces most up-to-date figure
+#       cust = custom
+mode = "oper"
+
 # Domain and variable definition
 hemi = "north"
 diag = "extent"
@@ -53,13 +57,15 @@ hemi_region = {"south": "Antarctic",
               }
 rootdir = "ftp://sidads.colorado.edu/DATASETS/NOAA/G02135/" + hemi +"/daily/data/"
 filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
-
-if os.path.exists(filein):
+stop()
+if mode == "oper":
+    wget.download(rootdir + filein)
+elif os.path.exists(filein):
     print("File already exists")
 else:
     wget.download(rootdir + filein)
 
-
+stop()
 # Reading and storing the data. We are going to archive the daily extents
 # in a 2-D numpy array with as many rows as there are years, and 365 columns
 # (one for each day). The 29th of February of leap years are excluded for 
@@ -249,8 +255,8 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 
-startdates = [datetime.date(2007, 1, 1) + timedelta(days = d) \
-              for d in range((datetime.date(2007, 8, 31) - datetime.date(2007, 1, 1)).days)]
+startdates = [datetime.date(2019, 1, 1) + timedelta(days = d) \
+              for d in range((datetime.date(2019, 8, 31) - datetime.date(2019, 1, 1)).days)]
 #startdates = [datetime.date(2020, m, 1) for m in range(1, 7)]
 
 # Remove 29th of February

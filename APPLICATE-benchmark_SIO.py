@@ -245,11 +245,18 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 
-startdates = [datetime.date(2020, 6, 1) + timedelta(days = d) \
-              for d in range((datetime.date(2020, 6, 2) - datetime.date(2020, 6, 1)).days)]
+startdates = [datetime.date(2007, 1, 1) + timedelta(days = d) \
+              for d in range((datetime.date(2007, 8, 31) - datetime.date(2007, 1, 1)).days)]
+#startdates = [datetime.date(2020, m, 1) for m in range(1, 7)]
+
+# Remove 29th of February
+startdates = [s for s in startdates if not (s.month == 2 and s.day == 29)]
 
 # First year for bias correction
-year_ppb = 1991
+year_ppb = 1988 + order + 1 # to allow backgroudn estimation
+
+# Forecast probability of various events happening
+pe = list()
 
 # Next, we loop over all initial times and issue a lead-time dependent forecast
 for inidate in startdates:
@@ -449,38 +456,70 @@ for inidate in startdates:
     ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
     ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
     
-    # All time min
+    # Event #1: breaking current record
     ax.plot((alltimemin, alltimemin), (-10, 10), "r", label = "All-time min.")
     ax.arrow(alltimemin, - 0.07, -0.4, 0.0, color = "r", head_width = 0.05)
-    # Print CDF
-    cdf = scipy.stats.norm.cdf(alltimemin, mu, sig) * 100.0
-    ax.text(alltimemin, -0.1, str(np.round(cdf, 1)) + " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
+    probmin = scipy.stats.norm.cdf(alltimemin, mu, sig)
+    ax.text(alltimemin, -0.1, str(np.round(probmin * 100, 1)) + 
+            " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
     
-    #ax.plot((np.nanmax(verif_mean), np.nanmax(verif_mean)), (-10, 10), "g", label = "All-time maximum")
-    #ax.plot((np.nanmean(verif_mean), np.nanmean(verif_mean)), (-10, 10), "g", label = "Mean")
-    #ax.fill_between(np.linspace(0.0, alltimemin, 10000), 
-    #                scipy.stats.norm.pdf(np.linspace(0.0, alltimemin, 10000), mu, sig), color = "orange", alpha = 0.5)
-    # First tercile
+    
+    # Event #2: In first tercile
+    probterc1 = scipy.stats.norm.cdf(terciles[0], mu, sig)
+    
     ax.fill_between(np.linspace(0.0, terciles[0], 10000), 
                     scipy.stats.norm.pdf(np.linspace(0.0, terciles[0], 10000), \
                                          mu, sig), color = "red", alpha = 0.5, lw = 0.0, \
                                          label = "1st tercile (" + \
-                                         str(np.round(scipy.stats.norm.cdf(terciles[0], mu, sig) * 100.0, 1)) + " %)")
-    # Second tercile
+                                         str(np.round(probterc1 * 100.0, 1)) + " %)")
+                    
+    # Event #3: In second tercile
+    probterc2 = scipy.stats.norm.cdf(terciles[1], mu, sig) - scipy.stats.norm.cdf(terciles[0], mu, sig)
     ax.fill_between(np.linspace(terciles[0], terciles[1], 10000), 
                     scipy.stats.norm.pdf(np.linspace(terciles[0], terciles[1], \
                                         10000), mu, sig), color = "black",
                                                      alpha = 0.1, lw = 0.0,
                                                      label = "2nd tercile (" \
-                                                     + str(np.round((scipy.stats.norm.cdf(terciles[1], mu, sig) - scipy.stats.norm.cdf(terciles[0], mu, sig)) * 100, 1)) + " %)")
+                                                     + str(np.round(probterc2 * 100, 1)) + " %)")
     # Third tercile
+    probterc3 = 1 - scipy.stats.norm.cdf(terciles[1], mu, sig)
     ax.fill_between(np.linspace(terciles[1], 30, 10000), 
                     scipy.stats.norm.pdf(np.linspace(terciles[1], 30, 10000), 
                                          mu, sig), color = "blue", alpha = 0.5, lw = 0.0, 
-                                         label = "3rd tercile (" + str(np.round((1 - scipy.stats.norm.cdf(terciles[1], mu, sig)) * 100, 1)) + " %)")
+                                         label = "3rd tercile (" + str(np.round(probterc3 * 100, 1)) + " %)")
     ax.legend(ncol = 1)
     ax.set_title("Forecast PDF (initialized " + str(inidate) + ")")
     ax.set_axisbelow(True)
     fig.tight_layout()
     fig.savefig("./figs/outlook_order" + str(order) + "_" + 
                     str(inidate) + ".png")
+    plt.close(fig)
+    
+    # Time series of various events happening
+    pe.append([inidate, [probmin, probterc1, probterc2, probterc3]])
+    
+    fig, ax = plt.subplots(1, 1, figsize = (7, 4), dpi =    dpi)
+    ax.grid()
+
+    ax.plot([x[0] for x in pe], [100 * x[1][0] for x in pe], color = "red", label = "... breaking record")
+       
+    ax.fill_between([x[0] for x in pe], [100 * x[1][1] for x in pe], color = "red", 
+                alpha = 0.5, lw = 0.0, label = "... in 1st tercile")
+    ax.fill_between([x[0] for x in pe], [100 * x[1][1] for x in pe], [100 * (x[1][1] + x[1][2]) for x in pe], color = "black", 
+                alpha = 0.1, lw = 0.0, label = "... in 2nd tercile")
+    ax.fill_between([x[0] for x in pe], [100 * (x[1][1] + x[1][2]) for x in pe], [100 for x in pe], color = "blue", 
+                alpha = 0.5, lw = 0.0, label = "... in 3rd tercile")
+
+    ax.set_title("Forecast probabilities of " + str(inidate.year) + "\nSeptember mean sea ice extent ...")
+    ax.set_ylim(0.0, 100.0)
+    ax.set_ylabel("%")
+    ax.set_xlabel("Initialization date")
+
+    ax.set_xlim(datetime.date(inidate.year, 1, 1), datetime.date(inidate.year, 12, 31))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
+    
+    fig.autofmt_xdate(rotation = 45)
+    ax.legend(loc = "upper right")
+    fig.tight_layout()
+    fig.savefig("./figs/events_order" + str(order ) + "_" + str(inidate) + ".png")
+    

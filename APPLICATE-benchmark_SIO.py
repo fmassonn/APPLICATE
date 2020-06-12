@@ -29,6 +29,10 @@ import datetime
 import matplotlib.dates  as mdates
 import scipy.stats
 
+# Create output folder for figures if does not exist
+if not os.path.isdir("./figs"):
+    os.makedirs("./figs")
+
 # Close all figures
 plt.close("all")    
 

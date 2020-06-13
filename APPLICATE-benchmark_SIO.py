@@ -15,19 +15,25 @@ Created on Wed Jun  3 13:48:32 2020
 
 # Imports of modules
 
-from datetime import timedelta
-from dateutil.relativedelta import relativedelta
+import os
+
+import matplotlib as mpl
+if os.environ.get('DISPLAY','') == '' or os.name == "posix":
+    print('no display found. Using non-interactive Agg backend')
+    mpl.use('Agg')
 
 import numpy as np
 import matplotlib.pyplot as plt
 import wget
-import os
 import csv
 import pandas as pd
 import calendar
 import datetime
 import matplotlib.dates  as mdates
 import scipy.stats
+
+from datetime import timedelta
+from dateutil.relativedelta import relativedelta
 
 # Create output folder for figures if does not exist
 if not os.path.isdir("./figs"):
@@ -57,15 +63,16 @@ hemi_region = {"south": "Antarctic",
               }
 rootdir = "ftp://sidads.colorado.edu/DATASETS/NOAA/G02135/" + hemi +"/daily/data/"
 filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
-stop()
+
 if mode == "oper":
+    if os.path.exists(filein):
+        os.remove(filein)
     wget.download(rootdir + filein)
 elif os.path.exists(filein):
     print("File already exists")
 else:
     wget.download(rootdir + filein)
 
-stop()
 # Reading and storing the data. We are going to archive the daily extents
 # in a 2-D numpy array with as many rows as there are years, and 365 columns
 # (one for each day). The 29th of February of leap years are excluded for 
@@ -83,11 +90,6 @@ with open(filein, 'r') as csvfile:
     if j <= 1:
       print("Ignore, header")
     else:
-      #extents.append(float(row[3]))
-      #mydates.append(datetime.date(int(row[0]), int(row[1]), int(row[2])))
-      #mydata.append([datetime.date(int(row[0]), int(row[1]), int(row[2])), \
-      #                float(row[3])
-      #              ])
       rawdata.append([datetime.date(int(row[0]), int(row[1]), int(row[2])), float(row[3])])
     j = j + 1
      
@@ -254,10 +256,13 @@ def damped_anomaly_persistence_forecast(inidate):
 
 
 # Forecasting
-
-startdates = [datetime.date(2019, 1, 1) + timedelta(days = d) \
+if mode == "oper":
+    startdates = [rawdata[-1][0]]
+    startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days )]
+    #startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
+else:
+    startdates = [datetime.date(yeare, 1, 1) + timedelta(days = d) \
               for d in range((datetime.date(2019, 8, 31) - datetime.date(2019, 1, 1)).days)]
-#startdates = [datetime.date(2020, m, 1) for m in range(1, 7)]
 
 # Remove 29th of February
 startdates = [s for s in startdates if not (s.month == 2 and s.day == 29)]
@@ -276,7 +281,9 @@ for inidate in startdates:
     inimon  = inidate.month
     iniday  = inidate.day
     
-    
+    # Create folder for figures if not exists
+    if not os.path.isdir("./figs/" + str(iniyear)):
+        os.makedirs("./figs/" + str(iniyear))
     # Issue the raw forecast
     print("Forecasting " + str(inidate))
     dates_forecast, forecast, std_forecast, verif_data = \
@@ -344,7 +351,7 @@ for inidate in startdates:
     a.set_ylabel("$10^6$ km²")
     a.set_title("Damped anomaly persistence forecast of\ndaily Arctic sea ice extent\ninitialized on " + str(inidate))
     fig.autofmt_xdate(rotation = 45)
-    fig.savefig("./figs/forecast_order" + str(order) + "_" + 
+    fig.savefig("./figs/" + str(iniyear) + "/forecast_order" + str(order) + "_" + 
                 str(inidate) + ".png")
     
     
@@ -435,7 +442,7 @@ for inidate in startdates:
     
     ax.legend(loc = "upper left")
     
-    fig.savefig("./figs/verif-postproc_order" + str(order) + "_" + 
+    fig.savefig("./figs/" + str(iniyear) + "/verif-postproc_order" + str(order) + "_" + 
                     str(inidate) + ".png")
     
     
@@ -501,7 +508,7 @@ for inidate in startdates:
     ax.set_title("Forecast PDF (initialized " + str(inidate) + ")")
     ax.set_axisbelow(True)
     fig.tight_layout()
-    fig.savefig("./figs/outlook_order" + str(order) + "_" + 
+    fig.savefig("./figs/" + str(iniyear) + "/outlook_order" + str(order) + "_" + 
                     str(inidate) + ".png")
     plt.close(fig)
     
@@ -528,8 +535,10 @@ for inidate in startdates:
     ax.set_xlim(datetime.date(inidate.year, 1, 1), datetime.date(inidate.year, 12, 31))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
     
+    ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "Valid " + datetime.now(), rotation = 45, ha = "left")
     fig.autofmt_xdate(rotation = 45)
     ax.legend(loc = "upper right")
     fig.tight_layout()
-    fig.savefig("./figs/events_order" + str(order ) + "_" + str(inidate) + ".png")
-    
+    fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + "_" + str(inidate) + ".png")
+    if mode == "oper":
+        fig.savefig("./current_outlook.png") # latest available

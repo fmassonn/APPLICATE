@@ -258,7 +258,7 @@ def damped_anomaly_persistence_forecast(inidate):
 # Forecasting
 if mode == "oper":
     startdates = [rawdata[-1][0]]
-    startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days )]
+    #startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days )]
     #startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
 else:
     startdates = [datetime.date(yeare, 1, 1) + timedelta(days = d) \
@@ -510,6 +510,9 @@ for inidate in startdates:
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/outlook_order" + str(order) + "_" + 
                     str(inidate) + ".png")
+    if mode == "oper":
+        fig.savefig("./current_pdf.png")
+
     plt.close(fig)
     
     # Time series of various events happening
@@ -535,7 +538,7 @@ for inidate in startdates:
     ax.set_xlim(datetime.date(inidate.year, 1, 1), datetime.date(inidate.year, 12, 31))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
     
-    ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "Valid " + datetime.now(), rotation = 45, ha = "left")
+    ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "Valid " + str(datetime.datetime.now()), fontsize = 6, rotation = 90, va = "bottom")
     fig.autofmt_xdate(rotation = 45)
     ax.legend(loc = "upper right")
     fig.tight_layout()

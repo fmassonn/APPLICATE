@@ -51,7 +51,7 @@ hemi = "north"
 diag = "extent"
 
 # Image resolution
-dpi = 300
+dpi = 150
 
 # Estimation of background.
 # Order of detrending. 0 = plain climatology, 1 = linear, 2 = quadratic, ...
@@ -257,9 +257,9 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 if mode == "oper":
-    startdates = [rawdata[-1][0]]
-    #startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days )]
-    #startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
+    #startdates = [rawdata[-1][0]]
+    startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days + 1)]
+    #startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)] + [rawdata[-1][0]]
 else:
     startdates = [datetime.date(yeare, 1, 1) + timedelta(days = d) \
               for d in range((datetime.date(2019, 8, 31) - datetime.date(2019, 1, 1)).days)]
@@ -510,7 +510,7 @@ for inidate in startdates:
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/outlook_order" + str(order) + "_" + 
                     str(inidate) + ".png")
-    if mode == "oper":
+    if inidate == startdates[-1] and mode == "oper":
         fig.savefig("./current_pdf.png")
 
     plt.close(fig)
@@ -543,5 +543,5 @@ for inidate in startdates:
     ax.legend(loc = "upper right")
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + "_" + str(inidate) + ".png")
-    if mode == "oper":
+    if inidate == startdates[-1] and mode == "oper":
         fig.savefig("./current_outlook.png") # latest available

@@ -44,7 +44,7 @@ plt.close("all")
 
 # Mode. oper = downloads latest data and produces most up-to-date figure
 #       cust = custom
-mode = "oper"
+mode = "hind"
 
 # Domain and variable definition
 hemi = "north"
@@ -257,13 +257,13 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 if mode == "oper":
-    #startdates = [rawdata[-1][0]]
-    startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days + 1)]
-    #startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)] + [rawdata[-1][0]]
+    startdates = rawdata[-1][0]
+
 else:
     startdates = [datetime.date(yeare, 1, 1) + timedelta(days = d) \
               for d in range((datetime.date(2019, 8, 31) - datetime.date(2019, 1, 1)).days)]
-
+    startdates = [datetime.date(2020, 1, 1), datetime.date(2020, 5, 1)]
+    startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
 # Remove 29th of February
 startdates = [s for s in startdates if not (s.month == 2 and s.day == 29)]
 
@@ -465,10 +465,8 @@ for inidate in startdates:
     # All time minimum until now
     alltimemin = np.min(verif_hindcast_mean)
     
-    # Terciles
-    terciles = np.percentile(verif_hindcast_mean, [100 / 3, 200 / 3])
-    
-    
+
+
     xx = np.linspace(0.0, 30.0, 10000)
     ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
     ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", label = "Forecast PDF")
@@ -481,32 +479,31 @@ for inidate in startdates:
             " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
     
     
-    # Event #2: In first tercile
-    probterc1 = scipy.stats.norm.cdf(terciles[0], mu, sig)
+    #quantiles = np.arange(0.0, 100.0 + 10.0, 10.0)
+    # Has to start with zero
+    quantiles = [0.0, 10.0, 30.0, 70.0, 90.0, 100.0]
+    #quantiles = [0.0, 33.3, 66.6, 100.0]
     
-    ax.fill_between(np.linspace(0.0, terciles[0], 10000), 
-                    scipy.stats.norm.pdf(np.linspace(0.0, terciles[0], 10000), \
-                                         mu, sig), color = "red", alpha = 0.5, lw = 0.0, \
-                                         label = "1st tercile (" + \
-                                         str(np.round(probterc1 * 100.0, 1)) + " %)")
-                    
-    # Event #3: In second tercile
-    probterc2 = scipy.stats.norm.cdf(terciles[1], mu, sig) - scipy.stats.norm.cdf(terciles[0], mu, sig)
-    ax.fill_between(np.linspace(terciles[0], terciles[1], 10000), 
-                    scipy.stats.norm.pdf(np.linspace(terciles[0], terciles[1], \
-                                        10000), mu, sig), color = "black",
-                                                     alpha = 0.1, lw = 0.0,
-                                                     label = "2nd tercile (" \
-                                                     + str(np.round(probterc2 * 100, 1)) + " %)")
-    # Third tercile
-    probterc3 = 1 - scipy.stats.norm.cdf(terciles[1], mu, sig)
-    ax.fill_between(np.linspace(terciles[1], 30, 10000), 
-                    scipy.stats.norm.pdf(np.linspace(terciles[1], 30, 10000), 
-                                         mu, sig), color = "blue", alpha = 0.5, lw = 0.0, 
-                                         label = "3rd tercile (" + str(np.round(probterc3 * 100, 1)) + " %)")
-    ax.legend(ncol = 1)
+    colors = [plt.cm.RdBu(int(255 / 100 * 0.5 * (quantiles[j - 1] + quantiles[j]))) for j in range(1, len(quantiles))]
+    # Define events
+    mythreshs   = np.percentile(verif_hindcast_mean, quantiles)
+    
+    for j in range(1, len(mythreshs)):
+        xx = np.linspace(mythreshs[j - 1], mythreshs[j], 10000)
+        ax.fill_between(xx, scipy.stats.norm.pdf(xx, mu, sig), 
+                    color = colors[j - 1], alpha = 0.8 , lw = 0.0, \
+                     label = "Obs. " + str(int(quantiles[j - 1])) + 
+                     "-" + str(int(quantiles[j])) + " %")
+   
+    ax.text(ax.get_xlim()[1], -0.2,  "\nValid " +
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + 
+            " | @FMassonnet @applicate_eu", 
+            rotation =90, ha = "left", va = "bottom", fontsize = 5)
+    
+    ax.legend(ncol = 1, fontsize = 8)
     ax.set_title("Forecast PDF (initialized " + str(inidate) + ")")
     ax.set_axisbelow(True)
+    
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/outlook_order" + str(order) + "_" + 
                     str(inidate) + ".png")
@@ -515,22 +512,22 @@ for inidate in startdates:
 
     plt.close(fig)
     
-    # Time series of various events happening
-    pe.append([inidate, [probmin, probterc1, probterc2, probterc3]])
+    # Time series of probability of various events happening
     
+    # Event probabilities: less than min, in each interval, more than max
+    myprobs = np.diff(np.array(([0.0] + [scipy.stats.norm.cdf(m, mu ,sig) for m in mythreshs] + [1.0])))
+    pe.append([inidate, myprobs])    
     fig, ax = plt.subplots(1, 1, figsize = (7, 4), dpi =    dpi)
     ax.grid()
 
-    ax.plot([x[0] for x in pe], [100 * x[1][0] for x in pe], color = "red", label = "... breaking record")
-       
-    ax.fill_between([x[0] for x in pe], [100 * x[1][1] for x in pe], color = "red", 
-                alpha = 0.5, lw = 0.0, label = "... in 1st tercile")
-    ax.fill_between([x[0] for x in pe], [100 * x[1][1] for x in pe], [100 * (x[1][1] + x[1][2]) for x in pe], color = "black", 
-                alpha = 0.1, lw = 0.0, label = "... in 2nd tercile")
-    ax.fill_between([x[0] for x in pe], [100 * (x[1][1] + x[1][2]) for x in pe], [100 for x in pe], color = "blue", 
-                alpha = 0.5, lw = 0.0, label = "... in 3rd tercile")
-
-    ax.set_title("Forecast probabilities of " + str(inidate.year) + "\nSeptember mean sea ice extent ...")
+    colors_ts = [(1.0, 0.0, 0.0, 1.0)] + colors + [(0.0, 0.0, 1.0, 1.0)]
+    mylabs = ["... breaking record low"] + ["... in obs. " + str(int(quantiles[j - 1])) + 
+                     "-" + str(int(quantiles[j])) + " %" for j in range(1, len(quantiles))] + ["... breaking record high"]
+    for j in range(len(myprobs)):
+        ax.plot([x[0] for x in pe], [100.0 * x[1][j] for x in pe], 
+                color = colors_ts[j], label = mylabs[j])
+    
+    ax.set_title("Forecast probabilities of " + str(inidate.year) + " September mean sea ice extent ...")
     ax.set_ylim(0.0, 100.0)
     ax.set_ylabel("%")
     ax.set_xlabel("Initialization date")
@@ -538,9 +535,13 @@ for inidate in startdates:
     ax.set_xlim(datetime.date(inidate.year, 1, 1), datetime.date(inidate.year, 12, 31))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
     
-    ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "Valid " + str(datetime.datetime.now()), fontsize = 6, rotation = 90, va = "bottom")
+    ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "\nValid " +
+            datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + 
+            " | @FMassonnet @applicate_eu",
+            rotation =90, va = "bottom", fontsize = 6)
+
     fig.autofmt_xdate(rotation = 45)
-    ax.legend(loc = "upper right")
+    ax.legend(loc = "upper right", fontsize = 8)
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + "_" + str(inidate) + ".png")
     if inidate == startdates[-1] and mode == "oper":

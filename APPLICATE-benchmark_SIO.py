@@ -257,11 +257,8 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 if mode == "oper":
-<<<<<<< HEAD
     startdates = rawdata[-1][0]
-=======
-    startdates = [rawdata[-1][0]]
->>>>>>> 93f2f72930e25ce6356fcbe563938597845acc97
+
     #startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days )]
     #startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
 else:
@@ -512,11 +509,9 @@ for inidate in startdates:
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/outlook_order" + str(order) + "_" + 
                     str(inidate) + ".png")
-<<<<<<< HEAD
-=======
+
     if mode == "oper":
         fig.savefig("./current_pdf.png")
->>>>>>> 93f2f72930e25ce6356fcbe563938597845acc97
 
     plt.close(fig)
     
@@ -543,14 +538,11 @@ for inidate in startdates:
     ax.set_xlim(datetime.date(inidate.year, 1, 1), datetime.date(inidate.year, 12, 31))
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
     
-<<<<<<< HEAD
     ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "\nValid " +
             datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + 
             " | @FMassonnet @applicate_eu",
             rotation =90, va = "bottom", fontsize = 6)
-=======
-    ax.text(datetime.date(inidate.year  + 1 , 1, 1), 0.0,  "Valid " + str(datetime.datetime.now()), fontsize = 6, rotation = 90, va = "bottom")
->>>>>>> 93f2f72930e25ce6356fcbe563938597845acc97
+
     fig.autofmt_xdate(rotation = 45)
     ax.legend(loc = "upper right", fontsize = 8)
     fig.tight_layout()

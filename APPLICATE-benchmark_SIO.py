@@ -43,8 +43,8 @@ if not os.path.isdir("./figs"):
 plt.close("all")    
 
 # Mode. oper = downloads latest data and produces most up-to-date figure
-#       cust = custom
-mode = "hind"
+#       YYYY = does previous year
+mode = "2012"
 
 # Domain and variable definition
 hemi = "north"
@@ -257,13 +257,10 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 if mode == "oper":
-    startdates = rawdata[-1][0]
-
+    startdates = [datetime.date(rawdata[-1][0].year, 1, 1) + timedelta(days = d) for d in range((rawdata[-1][0] - datetime.date(rawdata[-1][0].year, 1, 1)).days )]
 else:
-    startdates = [datetime.date(yeare, 1, 1) + timedelta(days = d) \
-              for d in range((datetime.date(2019, 8, 31) - datetime.date(2019, 1, 1)).days)]
-    startdates = [datetime.date(2020, 1, 1), datetime.date(2020, 5, 1)]
-    startdates = [datetime.date(rawdata[-1][0].year, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
+    startdates = [datetime.date(int(mode), 1, 1) + timedelta(days = d) \
+              for d in range((datetime.date(int(mode), 8, 31) - datetime.date(int(mode), 1, 1)).days)]
 # Remove 29th of February
 startdates = [s for s in startdates if not (s.month == 2 and s.day == 29)]
 

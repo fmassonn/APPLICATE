@@ -55,7 +55,8 @@ if not os.path.isdir("./figs"):
 # either "oper" = downloads latest data and produces most up-to-date figure
 #        "YYYY" = does some year (but always in operational mode, that is,
 #                 not using future data)
-mode = "oper"
+#        "econ"= provides economical perspective on the forecast
+mode = "econ"
 freq = "daily"
 # Domain and variable definition
 hemi = "north"
@@ -317,7 +318,8 @@ def damped_anomaly_persistence_forecast(inidate):
 # Forecasting
 if mode == "oper":
     if freq == "monthly":
-        startdates = [datetime.date(yeare, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
+        startdates = [datetime.date(yeare, m, 1) for m in range(1, \
+                     rawdata[-1][0].month + 1)]
     elif freq == "daily":
         # All days from January 1 of this year to now
         startdates = [datetime.date(yeare, 1, 1) + \
@@ -325,7 +327,10 @@ if mode == "oper":
                            datetime.date(yeare, 1, 1)).days )]
     else:
         sys.exit("Frequency not valid")
-else:
+elif mode == "econ":
+    startdates = [datetime.date(y, rawdata[-1][0].month, rawdata[-1][0].day) \
+                  for y in np.arange(1994, yeare - 1)]
+else: 
     if freq == "daily":
         startdates = [datetime.date(int(mode), 1, 1) + timedelta(days = d) \
               for d in range((datetime.date(int(mode), 8, 31) - \
@@ -345,10 +350,10 @@ startdates = [s for s in startdates if not (s.month == 2 and s.day == 29)]
 
 year_ppb = 1988 + order + 1 
 
-
-
 # Forecast probability of various events happening
-# Will be a time series from January 1 to now of the year to be forecasted
+# Will be a list with initial date and matching forecast probabilities
+# for sea ice extent being in certain percentiles 
+# It will also have the vector of the events being realized or not
 
 pe = list()
 
@@ -424,7 +429,7 @@ for inidate in startdates:
                      label = str(myzs[j]) + "% pred. interval", lw = 0)
     
     
-    # Add all-time until then
+    # Add all-time extremea until then
     alltimemin = np.nanmin(data[:iniyear-yearb, :])
     a.plot((-1e9, 1e9), (alltimemin, alltimemin), "r--", \
            label = "Minimum on record")
@@ -662,9 +667,20 @@ for inidate in startdates:
     for j in range(len(percentiles)):
         myprobs = np.append(np.append(np.array(cdfs[0]), np.diff(cdfs)), \
                           np.array(1.0 - cdfs[-1]))
-
-    pe.append([inidate, myprobs])   
-    
+        
+    if mode == "oper":
+        pe.append([inidate, myprobs])
+    else:
+        truth = np.mean([r[1] for r in rawdata if r[0].year == iniyear \
+                         and r[0].month == 9])
+        realized = 1 * np.array([truth < mythreshs[0]] + \
+                        [(truth >= mythreshs[j] and truth < mythreshs[j + 1]) \
+                        for j in range(len(mythreshs) - 1)] + \
+                         [truth >= mythreshs[-1]])
+        pe.append([inidate, myprobs, realized])
+        
+        if np.sum(realized) != 1:
+            sys.exit("Two exclusive events cannot realize")
     
     fig, ax = plt.subplots(1, 1, figsize = (6, 4), dpi = dpi)
     ax.grid()
@@ -733,9 +749,55 @@ for inidate in startdates:
     fig.autofmt_xdate(rotation = 45)
     ax.legend(loc = "upper right", fontsize = 6)
     fig.tight_layout()
-    fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + "_" + str(inidate) + ".png")
+    fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + \
+                "_" + str(inidate) + ".png")
     if inidate == startdates[-1]:
         if mode == "oper":
-            fig.savefig("./webpages/operational_outlook.png") # latest available
+            fig.savefig("./webpages/operational_outlook.png")# latest available
         else:
             fig.savefig("./webpages/hindcast_" + mode + "_outlook.png")
+
+myevents = list()
+if percentiles[0] == 0.0:
+    myevents.append('"lower than min. on record"')
+else:
+    myevents.append("< " + str(percentiles[0]) + " % percentile")
+    
+for j in range(0, len(percentiles) - 1):
+    myevents.append(str(percentiles[j]) + " % < $x$ $\leq$ " + str(percentiles[j + 1]) + " %")
+    
+if percentiles[-1] == 100.0:
+    myevents.append("higher than max. on record")
+else:
+    myevents.append("$\geq$ " + str(percentiles[-1]) + " % percentile")
+    
+    
+if mode == "econ":
+
+    for j in range(len(myevents)):
+
+        fig, ax = plt.subplots(1, 1, figsize = (6, 3), dpi = dpi)        
+        
+        # Plot forecast probabilities
+        for k in range(len(pe)):
+            if pe[k][2][j] == 1:
+                color = "green"
+            else:
+                color = "red"
+            ax.bar(pe[k][0].year, 100.0 * pe[k][1][j], color = color)
+            
+            ax.set_title("Forecast probabilities of event " + str(myevents[j]))
+            ax.set_ylabel("%")
+        
+        # If I say that event E has probability p to occur then I'm ready to
+        # give someone a little less than p (say 0.95 p). If I'm wrong, the person
+        # keeps the money. If I'm right, she gives me 100
+        
+        ax.grid()
+        ax.set_axisbelow(True)
+        fig.savefig("./econ" + str(j) + ".png")
+    
+        moneymade = np.sum([- 0.95 * 100.0 * pe[k][1][j] + 100.0 * \
+                            pe[k][2][j] for k in range(len(pe))])
+                    
+        print("Money made: " + str(np.round(moneymade)) + " €")

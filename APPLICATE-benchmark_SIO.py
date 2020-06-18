@@ -55,7 +55,7 @@ if not os.path.isdir("./figs"):
 # either "oper" = downloads latest data and produces most up-to-date figure
 #        "YYYY" = does some year (but always in operational mode, that is,
 #                 not using future data)
-mode = "2019"
+mode = "oper"
 freq = "daily"
 # Domain and variable definition
 hemi = "north"

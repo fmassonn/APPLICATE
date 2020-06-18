@@ -55,8 +55,8 @@ if not os.path.isdir("./figs"):
 # either "oper" = downloads latest data and produces most up-to-date figure
 #        "YYYY" = does some year (but always in operational mode, that is,
 #                 not using future data)
-mode = "2012"
-
+mode = "oper"
+freq = "daily"
 # Domain and variable definition
 hemi = "north"
 diag = "extent"
@@ -82,7 +82,7 @@ filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
 
 if mode == "oper":
     if os.path.exists("./data/" + filein):
-        os.remove(filein)
+        os.remove("./data/" + filein)
     wget.download(rootdir + filein, out = "./data/")
     
 elif os.path.exists("./data/" + filein):
@@ -316,17 +316,24 @@ def damped_anomaly_persistence_forecast(inidate):
 
 # Forecasting
 if mode == "oper":
-    # All days from January 1 of this year to now
-    startdates = [datetime.date(yeare, 1, 1) + \
+    if freq == "monthly":
+        startdates = [datetime.date(yeare, m, 1) for m in range(1, rawdata[-1][0].month + 1)]
+    elif freq == "daily":
+        # All days from January 1 of this year to now
+        startdates = [datetime.date(yeare, 1, 1) + \
                   timedelta(days = d) for d in range((rawdata[-1][0] - \
                            datetime.date(yeare, 1, 1)).days )]
+    else:
+        sys.exit("Frequency not valid")
 else:
-    startdates = [datetime.date(int(mode), 1, 1) + timedelta(days = d) \
+    if freq == "daily":
+        startdates = [datetime.date(int(mode), 1, 1) + timedelta(days = d) \
               for d in range((datetime.date(int(mode), 8, 31) - \
                               datetime.date(int(mode), 1, 1)).days)]
-              
-    startdates = [datetime.date(int(mode), m, 1) for m in range(1, 9)]
-              
+    elif freq == "monthly":
+        startdates = [datetime.date(int(mode), m, 1) for m in range(1, 9)]
+    else:
+        sys.exit("Frequency not valid")
 # Remove 29th of February
 startdates = [s for s in startdates if not (s.month == 2 and s.day == 29)]
 
@@ -638,8 +645,11 @@ for inidate in startdates:
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/outlook_order" + str(order) + \
                 "_" + str(inidate) + ".png")
-    if inidate == startdates[-1] and mode == "oper":
-        fig.savefig("./current_pdf.png")
+    if inidate == startdates[-1]:
+        if mode == "oper":
+            fig.savefig("./webpages/operational_pdf.png")
+        else:
+            fig.savefig("./webpages/hindcast_" + mode + "_pdf.png")
 
     plt.close(fig)
 
@@ -724,5 +734,8 @@ for inidate in startdates:
     ax.legend(loc = "upper right", fontsize = 6)
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + "_" + str(inidate) + ".png")
-    if inidate == startdates[-1] and mode == "oper":
-        fig.savefig("./current_outlook.png") # latest available
+    if inidate == startdates[-1]:
+        if mode == "oper":
+            fig.savefig("./webpages/operational_outlook.png") # latest available
+        else:
+            fig.savefig("./webpages/hindcast_" + mode + "_outlook.png")

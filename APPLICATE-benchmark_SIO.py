@@ -55,7 +55,7 @@ if not os.path.isdir("./figs"):
 # either "oper" = downloads latest data and produces most up-to-date figure
 #        "YYYY" = does some year (but always in operational mode, that is,
 #                 not using future data)
-mode = "oper"
+mode = "2019"
 freq = "daily"
 # Domain and variable definition
 hemi = "north"
@@ -603,7 +603,7 @@ for inidate in startdates:
         # Plot bars for extremes if requested
         if percentiles[j - 1] == 0.0:
             ax.plot((mythreshs[j - 1], mythreshs[j - 1]), (-1e9, 1e9), \
-                    color = "red", label = "Min. on record")
+                    color = "red", label = "Lowest record to date")
             ax.arrow(mythreshs[j - 1], - 0.07, -0.4, 0.0, color = "red", 
                      head_width = 0.05)
             probmin = scipy.stats.norm.cdf(mythreshs[j - 1], mu, sig)
@@ -611,7 +611,7 @@ for inidate in startdates:
             " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
         if percentiles[j] == 100.0:
             ax.plot((mythreshs[j], mythreshs[j]), (-1e9, 1e9), \
-                    color = "blue", label = "Max. on record")
+                    color = "blue", label = "Highest record to date")
             ax.arrow(mythreshs[j], - 0.07, 0.4, 0.0, color = "blue", 
                      head_width = 0.05)
             probmax = 1.0 - scipy.stats.norm.cdf(mythreshs[j], mu, sig)
@@ -673,7 +673,7 @@ for inidate in startdates:
     for j in range(len(percentiles)):
         if j == 0:
             if percentiles[j] == 0:
-                mylabel = "... breaking current record low"
+                mylabel = "... breaking record low to date"
                 mycol = (1.0, 0.0, 0.0, 1.0)
             else:
                 mylabel = "... < obs. " + \
@@ -692,7 +692,7 @@ for inidate in startdates:
         
         elif j == len(percentiles) - 1:
             if percentiles[j] == 100:
-                mylabel = "... breaking current record high"
+                mylabel = "... breaking record high to date"
                 mycol = (0.0, 0.0, 1.0, 1.0)
             else:
                 mylabel = "... > obs. " + \

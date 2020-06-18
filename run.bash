@@ -35,7 +35,7 @@ based on recalibrated damped anomaly persistence forecast
 <h2>
 This probabilistic statistical forecasting system has been developed as a contribution to the 
 <a href="https://www.arcus.org/sipn/sea-ice-outlook"> Sea Ice Outlook</a>
-</h2>
+</h2> as part of the <a href="https://www.applicate.eu"> APPLICATE </a> Horizon 2020 Project
 
 <h2>
 More details on the method can be found <a href="https://www.elic.ucl.ac.be/users/fmasson/sea-ice-forecasts/APPLICATE-benchmark.pdf">here</a>
@@ -62,7 +62,7 @@ Hindcasts are done in operational conditions (not using future data)
 
 # Create hindcast pages
 nowyear=$(date +%Y)
-for year in `seq 1992 $((nowyear - 1))`
+for year in `seq 1994 $((nowyear - 1))`
 do
 
   # Complete landing page

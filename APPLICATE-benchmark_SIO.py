@@ -324,7 +324,7 @@ if mode == "oper":
         # All days from January 1 of this year to now
         startdates = [datetime.date(yeare, 1, 1) + \
                   timedelta(days = d) for d in range((rawdata[-1][0] - \
-                           datetime.date(yeare, 1, 1)).days )]
+                           datetime.date(yeare, 1, 1)).days + 1)]
     else:
         sys.exit("Frequency not valid")
 elif mode == "econ":

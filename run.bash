@@ -35,7 +35,8 @@ based on recalibrated damped anomaly persistence forecast
 <h2>
 This probabilistic statistical forecasting system has been developed as a contribution to the 
 <a href="https://www.arcus.org/sipn/sea-ice-outlook"> Sea Ice Outlook</a>
-</h2> as part of the <a href="https://www.applicate.eu"> APPLICATE </a> Horizon 2020 Project
+as part of the <a href="https://www.applicate.eu"> APPLICATE </a> Horizon 2020 Project
+</h2>
 
 <h2>
 More details on the method can be found <a href="https://www.elic.ucl.ac.be/users/fmasson/sea-ice-forecasts/APPLICATE-benchmark.pdf">here</a>
@@ -56,7 +57,7 @@ echo "<!DOCTYPE html>
 based on recalibrated damped anomaly persistence forecast
 </h1>
 
-Hindcasts are done in operational conditions (not using future data)
+Hindcasts are done in operational conditions (never using future data)
 
 " > webpages/hindcasts.html
 
@@ -78,6 +79,9 @@ based on recalibrated damped anomaly persistence forecast
 </h1>
 
 <img src="hindcast_${year}_outlook.png" width=1000 >
+<br>
+
+<img src="hindcast_${year}_pdf.png" width=1000 >
 <br>
 
 <a href="https://www.elic.ucl.ac.be/users/fmasson/sea-ice-forecasts/oper.html">Back to operational</a>

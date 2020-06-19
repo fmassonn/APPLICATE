@@ -56,7 +56,7 @@ if not os.path.isdir("./figs"):
 #        "YYYY" = does some year (but always in operational mode, that is,
 #                 not using future data)
 #        "econ"= provides economical perspective on the forecast
-mode = "econ"
+mode = "oper"
 freq = "daily"
 # Domain and variable definition
 hemi = "north"

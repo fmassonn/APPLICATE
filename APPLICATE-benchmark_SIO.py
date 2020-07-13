@@ -571,7 +571,7 @@ for inidate in startdates:
     # n+1) above highest percentile. If that percentile, it means 
     # breaking record high))
     
-    percentiles = [0.0, 30.0, 70.0, 100.0]
+    percentiles = [0.0, 5.0, 10.0, 30.0, 70.0, 100.0]
     colors = [plt.cm.RdYlBu(int(255 / 100 * 0.5 * (percentiles[j - 1] + \
                         percentiles[j]))) for j in range(1, len(percentiles))]
 
@@ -748,6 +748,7 @@ for inidate in startdates:
     
     fig.autofmt_xdate(rotation = 45)
     ax.legend(loc = "upper right", fontsize = 6)
+    ax.set_facecolor([0.9, 0.9, 0.9])
     fig.tight_layout()
     fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + \
                 "_" + str(inidate) + ".png")

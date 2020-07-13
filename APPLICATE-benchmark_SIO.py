@@ -325,6 +325,7 @@ if mode == "oper":
         startdates = [datetime.date(yeare, 1, 1) + \
                   timedelta(days = d) for d in range((rawdata[-1][0] - \
                            datetime.date(yeare, 1, 1)).days + 1)]
+        startdates = [startdates[-1]]
     else:
         sys.exit("Frequency not valid")
 elif mode == "econ":
@@ -540,7 +541,12 @@ for inidate in startdates:
         "\n(detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")")
     
     # Print re-processed forecast
-    ax.text(5.5, 2.5    , str(forecast_year) + " forecast:\n" + 
+    if hemi == "north":
+        xtext, ytext = 5.5, 2.5
+    elif hemi == "south":
+        xtext, ytext = 19.0, 17.8
+        
+    ax.text(xtext, ytext    , str(forecast_year) + " forecast:\n" + 
             str(np.round(ahat * forecast_mean + bhat, 2)) + 
             " [" + str(np.round(ahat * forecast_mean + bhat - 
                                 1.96 * spred(forecast_mean), 2)) +  " - " +
@@ -705,6 +711,8 @@ for inidate in startdates:
             mycol = colors[j]
             ax.plot([x[0] for x in pe], [100.0 * x[1][j + 1] for x in pe], 
                 color = mycol, label = mylabel)
+            
+            
         
         elif j == len(percentiles) - 1:
             if percentiles[j] == 100:
@@ -724,6 +732,7 @@ for inidate in startdates:
             ax.plot([x[0] for x in pe], [100.0 * x[1][j + 1] for x in pe], 
                 color = mycol, label = mylabel)
                      
+    
 
     # Add target
     ax.fill_between((datetime.date(iniyear, 9, 1), \

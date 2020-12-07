@@ -60,7 +60,7 @@ hemi = "north"
 diag = "extent"
 
 # Image resolution
-dpi = 150
+dpi = 300
 
 # Estimation of background.
 # Order of detrending. 0 = plain climatology, 1 = linear, 2 = quadratic, ...
@@ -143,8 +143,8 @@ for r in rawdata:
 
 # Figure
 fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = dpi)
-fig.set_facecolor("white")
-#plt.style.use('dark_background')
+fig.set_facecolor("black")
+ax.set_facecolor("black")
 xmin = np.min(np.nanmin(data[1:, :], axis = 1))
 xmax = np.max(np.nanmin(data[1:, :], axis = 1))
 for y in np.arange(yearb + 1, yeare + 1):
@@ -161,27 +161,24 @@ for y in np.arange(yearb + 1, yeare + 1):
         col1980 = color
 
 # Legends
-ax.text(175, 1.4, "2012", color = col2012 )
-ax.plot((220, 240), (2.0, 3.3), color = col2012, lw = 1)
-ax.text(295, 1.4, "2020", color = col2020 )
-ax.plot((290, 265), (2.0, 4.0), color = col2020, lw = 1)
-ax.text(225, 10.4, "1980", color = col1980 )
-ax.plot((240, 250), (10.0, 7.5), color = col1980, lw = 1)
+#ax.text(175, 1.4, "2012", color = col2012 )
+#ax.plot((220, 240), (2.0, 3.3), color = col2012, lw = 1)
+#ax.text(295, 1.4, "2020", color = col2020 )
+#ax.plot((290, 265), (2.0, 4.0), color = col2020, lw = 1)
+#ax.text(225, 10.4, "1980", color = col1980 )
+#ax.plot((240, 250), (10.0, 7.5), color = col1980, lw = 1)
 
-ax.set_facecolor("white")
 # Ticks months
 ndpm = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 monnam = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 ndpmc = np.cumsum(np.array(ndpm))
-ax.set_xticks(ndpmc)
-ax.set_xticklabels([m[0] + "  " for m in monnam], ha = "right")
-ax.set_xlim(1.0, 365.0)
-ax.set_ylabel(r"$10^6$ km$^2$", rotation = 90)
-ax.set_yticks([0, 5, 10, 15])
-ax.grid()
+
+ax.text(370, 1, "Figure: @FMassonnet. Data: NSIDC sea ice index", \
+        color = [0.2, 0.2, 0.2], fontsize = 5, rotation = 90)
+
 #ax.yaxis.set_label_coords(-0.2,1.0)
 ax.set_ylim(0.0, 18.0)
-ax.set_title("Arctic sea ice extent 1979-2020")
+plt.axis("off")
 fig.tight_layout()
 plt.savefig("./ArcticStripes.png")
 

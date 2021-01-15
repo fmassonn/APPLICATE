@@ -53,7 +53,7 @@ if not os.path.isdir("./figs"):
 #        "YYYY" = does some year (but always in operational mode, that is,
 #                 not using future data)
 #        "econ"= provides economical perspective on the forecast
-mode = "noper"
+mode = "oper"
 freq = "daily"
 # Domain and variable definition
 hemi = "north"
@@ -114,8 +114,8 @@ with open("./data/" + filein, 'r') as csvfile:
 
 
 # Detect first and last years of the sample
-yearb = rawdata[0][0].year
-yeare = rawdata[-1][0].year
+yearb = 1979 # First full year ; rawdata[0][0].year
+yeare = rawdata[-1][0].year - 1 # - 1  to not take ongoing years
 nyear = yeare - yearb + 1
 nday  = 365
 
@@ -139,7 +139,8 @@ for r in rawdata:
         # To match Pythonic conventions    
         col = doy - 1
         
-        data[row, col] = r[1]
+        if r[0].year >= yearb and r[0].year <= yeare:
+            data[row, col] = r[1]
 
 # Figure
 fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = dpi)
@@ -150,6 +151,7 @@ xmax = np.max(np.nanmin(data[1:, :], axis = 1))
 for y in np.arange(yearb + 1, yeare + 1):
     value = np.nanmin(data[y - yearb, :])
     color = plt.cm.RdBu(int((value - xmin) * 255 / (xmax - xmin)))[:3]
+    print(color)
     days = np.arange(365)
     plt.plot(days, data[y - yearb, :], color = color)
     

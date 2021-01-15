@@ -144,16 +144,18 @@ for r in rawdata:
 
 # Figure
 fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = dpi)
+ax = plt.axes(projection = '3d')
+ax.view_init(0, -80)
 fig.set_facecolor("black")
 ax.set_facecolor("black")
 xmin = np.min(np.nanmin(data[1:, :], axis = 1))
 xmax = np.max(np.nanmin(data[1:, :], axis = 1))
-for y in np.arange(yearb + 1, yeare + 1):
+for y in np.arange(yearb, yeare + 1):
     value = np.nanmin(data[y - yearb, :])
     color = plt.cm.RdBu(int((value - xmin) * 255 / (xmax - xmin)))[:3]
-    print(color)
     days = np.arange(365)
-    plt.plot(days, data[y - yearb, :], color = color)
+    ax.plot3D(days, (yeare - y) * np.ones(len(days)),  \
+              data[y - yearb, :], color = color, alpha = 0.2 + 0.8 * (y - yearb) / (yeare - yearb) )
     
     if y == 2012:
         col2012 = color
@@ -175,7 +177,7 @@ ndpm = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 monnam = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 ndpmc = np.cumsum(np.array(ndpm))
 
-ax.text(370, 1, "Figure: @FMassonnet. Data: NSIDC sea ice index", \
+ax.text(370, 1, 0, "Figure: @FMassonnet. Data: NSIDC sea ice index", \
         color = [0.2, 0.2, 0.2], fontsize = 5, rotation = 90)
 
 #ax.yaxis.set_label_coords(-0.2,1.0)

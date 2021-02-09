@@ -12,15 +12,156 @@ Created on Tue Feb  2 13:22:33 2021
 # - check if forecast gives expected behavior on one case
 # - What happens when attempting to predict yesterday or today?
 
+import calendar
+import csv
+import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+import os
+import wget
 
 np.random.seed(3)
 
 order = 2
 
-def dampedAnomalyForecast(time, series, leadTimes,\
-                               tMin = None, tMax = None):
+global hemi; hemi = "north"
+global dateRef; dateRef = datetime.date(1900, 1, 1)
+
+def downloadData(mode = ""):
+    # Retrieving the data source file
+    # -------------------------------
+
+    hemi_region = {"south": "Antarctic",
+                   "north": "Arctic"   ,
+                  }
+    rootdir = "ftp://sidads.colorado.edu/DATASETS/NOAA/G02135/" + hemi + \
+               "/daily/data/"
+    filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
+    
+    if mode == "oper":
+        if os.path.exists("./data/" + filein):
+            os.remove("./data/" + filein)
+        wget.download(rootdir + filein, out = "./data/")
+        
+    elif os.path.exists("./data/" + filein):
+        print("File already exists, not downloading")
+    else:
+        wget.download(rootdir + filein, out = "./data/")
+
+
+
+    # Reading the data
+    # ----------------
+    
+    # Reading and storing the data. We are going to archive the daily extents
+    # in a 1-D numpy array. Missing data are still recorded but as NaNs
+    # Creating NaNs for missing data is useful because it makes the computation
+    # of autocorrelation easier later on.
+    # The 29th of February of leap years are excluded for 
+    # ease of analysis
+        
+        
+    # Index for looping through rows in the input file
+    j = 0
+    
+    outData = list()
+    rawData = list()
+    with open("./data/" + filein, 'r') as csvfile:
+      obj = csv.reader(csvfile, delimiter = ",")
+      nd = obj.line_num - 2 # nb data
+      for row in obj:
+        if j <= 1:
+          pass
+          #print("Ignore, header")
+        else:
+            thisDate = datetime.date(int(row[0]), int(row[1]), int(row[2]))
+            timeElapsed = (thisDate - dateRef).days
+            thisValue = float(row[3])
+            
+            # Only append if not 29 Feb
+            if thisDate.month != 2 or thisDate.day != 29:
+                rawData.append(
+                    [timeElapsed, thisDate, thisValue]
+                    )
+            
+        j = j + 1
+        
+        
+    # Now that we have the raw dates, we can create 
+    # a list of items for each date, even those for which there is no data.
+        
+    outData = list()
+    
+
+    # Create list of all dates except 29th of Feb between the first and
+    # last dates of rawData
+    
+    thisDate = rawData[0][1]
+    allDates = list()
+    
+    while thisDate <= rawData[-1][1]:
+        
+        if thisDate.day != 29 or thisDate.month != 2:
+            
+            allDates.append(thisDate)
+
+        thisDate += datetime.timedelta(days = 1)
+    
+    
+    
+    # Finally, go throught allDates and dump rawData if exists for that date
+    counterRaw = 0
+    outData = list()
+    import time
+    
+    for d in allDates:
+        
+        timeElapsed = (d - dateRef).days
+        if rawData[counterRaw][1] == d:
+            #If there is a match, record it
+            thisValue = rawData[counterRaw][2]
+            counterRaw += 1
+        else:
+
+            thisValue = np.nan
+        
+        outData.append([timeElapsed, d, thisValue])
+
+    return outData
+
+
+# # Detect first and last years of the sample
+# yearb = rawdata[0][0].year
+# yeare = rawdata[-1][0].year
+# nyear = yeare - yearb + 1
+# # Number of days per year
+# nday  = 365
+
+# # Create data array
+# data = np.full(nyear * nday, np.nan)
+
+# # Fill it: loop over the raw data and store the extent value
+# for r in rawdata:
+    
+#     # Ignore if 29th February
+#     # Day of year
+#     doy = int(r[0].strftime('%j'))
+#     if not (calendar.isleap(r[0].year) and doy == 60):
+#         # Match year
+#         row = r[0].year - yearb
+#         # Match day of year. Number of days counted from 1 to 365
+#         # If leap year and after 29th Feb, subtract 1 to column to erase 29th Feb
+
+#         if calendar.isleap(r[0].year) and doy > 60:
+#             doy -= 1
+#         # To match Pythonic conventions    
+#         col = doy - 1
+        
+#         data[row * nday + col] = r[1]
+        
+        
+        
+def dampedAnomalyForecast(time, series, leadTimes):
     """
     
 
@@ -31,12 +172,6 @@ def dampedAnomalyForecast(time, series, leadTimes,\
         
     series : NUMPY ARRAY
            Dataset used to train the model
-    tMin   : int
-           Time coordinate defining the beginning of the training period
-           (included)
-    tMax   : int
-           Time coordinate defining the end of the training period
-           (excluded)
            
     leadTimes : NUMPY ARRAY of integers
            Array of time coordinates at which the forecast is to be made
@@ -59,31 +194,38 @@ def dampedAnomalyForecast(time, series, leadTimes,\
     # Checks
     if len(time) != len(series):
         sys.exit("Unequal lengths)")
-
-    # Optional arguments
-    if tMin is None:
-        tMin = np.min(time)
-    if tMax is None:
-        tMax = np.max(time)
     
-    # Restrict series to training period
-    seriesTraining = series[(time >= tMin) * (time < tMax)]
-    timeTraining   = time[(time >= tMin) * (time < tMax)]
    
-    nowAnomaly = seriesTraining[-1]
+    nowAnomaly = series[-1]
                  
     # estimation of auto-correlation of anomalies 
-    autocorrel = np.array([np.corrcoef(seriesTraining[:- lag], seriesTraining[lag:])[0, 1] \
-                           for lag in np.arange(1, len(seriesTraining) - 2)])
-                    
+    # Add 0-th lag autocorrel!
+    autocorrel = list()
     
-    targetTimes = timeTraining[-1] + leadTimes
+    for lag in leadTimes:
+        if lag == 0:
+            correl = 1
+        else:
+            tmpSeries1 = series[:-lag]
+            tmpSeries2 = series[lag: ]
+            
+            # Product is used to identify Nans
+            tmpSeries1NoNan = tmpSeries1[~np.isnan(tmpSeries1 * tmpSeries2)]
+            tmpSeries2NoNan = tmpSeries2[~np.isnan(tmpSeries1 * tmpSeries2)]
+            
+            correl = np.corrcoef(tmpSeries1NoNan, tmpSeries2NoNan)[0, 1]
         
-    forecast = autocorrel[leadTimes] * nowAnomaly
+        autocorrel.append(correl)
+        
+
+    autocorrel = np.array(autocorrel)
+    
+
+    forecast = autocorrel * nowAnomaly
     
     # Contribution of anomaly term to forecast std       
     
-    return forecast, autocorrel[leadTimes]
+    return forecast, autocorrel
 
 def createSyntheticData(time):
 
@@ -105,7 +247,9 @@ def computeAnomalies(time, series, order, \
     Parameters
     ----------
     time : NUMPY ARRAY of integers
-           Time coordinates
+           Time coordinates, measured as units of times elapsed since a
+           reference date (e.g;, number of days since 1900-01-01)
+           Need not be evenly spaced.
     series : NP.ARRAY
         array of values to be anomalized
     order = order of detrending (linear, quadratic)
@@ -127,24 +271,37 @@ def computeAnomalies(time, series, order, \
     background = np.full(series.shape, np.nan)
     
     if periodicity is not None:
-        for j in np.arange(periodicity):
-            tmpseries = series[j::periodicity]
-            tmptime   = time[j::periodicity]
+        
+        jt = 0
+        while jt < periodicity:
+    
+            t0 = time[jt]
+            # Find matching times (inclluding of course the first one)
+            indices = [jtt for jtt, t in enumerate(time) \
+                       if (t - t0) % periodicity == 0]
+
+    
+            tmpSeries = series[indices]
+
+            tmpTime   = time[indices]
             
             # Estimate background for input time
-            p = np.polyfit(tmptime, tmpseries, order)
+            # First we need to remove the NaNs
+
+            tmpTimeNoNan = tmpTime[ ~ np.isnan(tmpSeries)]
+            tmpSeriesNoNan = tmpSeries[ ~ np.isnan(tmpSeries)]
+  
+            p = np.polyfit(tmpTimeNoNan, tmpSeriesNoNan, order)
             tmpBackground = np.polyval(p, \
-                                       tmptime)
+                                       tmpTime)
             
-            background[j::periodicity] = tmpBackground
+            background[indices] = tmpBackground
+            
+            jt += 1
                 
     else:
-        tmpseries = series
-        tmptime   = time
-        p = np.polyfit(tmptime, tmpseries, order)
-        tmpBackground = np.polyval(p, \
-                                  tmptime)
-        background = tmpBackground
+        print("NOT CODED")
+        stop()
     
     outAnomalies = series - background
     
@@ -168,13 +325,18 @@ def extrapolateBackground(time, series, order, extrapTime, periodicity = None):
             
             # Find the time instances and relevant indices that correspond
             # to the extrapolation time
-            tmplist = [[t, series[j]] for j, t in enumerate(time) if \
-                       (e - t)%periodicity == 0]
+            tmpList = [[t, series[j]] for j, t in enumerate(time) if \
+                       (e - t) % periodicity == 0]
             
-            tmptime   = np.array(tmplist)[:, 0]
-            tmpseries = np.array(tmplist)[:, 1]
+            tmpTime   = np.array(tmpList)[:, 0]
+            tmpSeries = np.array(tmpList)[:, 1]
 
-            p, cov = np.polyfit(tmptime, tmpseries, order, cov = True)
+            tmpTimeNoNan = tmpTime[~ np.isnan(tmpSeries)]
+            tmpSeriesNoNan = tmpSeries[~ np.isnan(tmpSeries)]
+
+            p, cov = np.polyfit(tmpTimeNoNan, tmpSeriesNoNan, \
+                                order, cov = True)
+                
             outBackground[k] = np.polyval(p, e)
             
             XX = np.matrix([e ** (order - i) \
@@ -190,71 +352,145 @@ def extrapolateBackground(time, series, order, extrapTime, periodicity = None):
 
     return outBackground, stdBackground
             
-time = np.arange(365*30)
-
-series = createSyntheticData(time)
 
 
+# FORECAST
+# --------
 
+
+#time = np.arange(365*30)
+#series = createSyntheticData(time)
+rawData = downloadData(mode = "oper")
+
+
+# Possibly screen the data first
+dateInit = rawData[-1][1] # datetime.date(2020, 6, 1)
+timeInit = rawData[-1][0]
+
+leadTimes = np.arange(0, 365, 3)
+
+time   = np.array([r[0] for r in rawData if r[1] <= dateInit])
+dates  =          [r[1] for r in rawData if r[1] <= dateInit]
+series = np.array([r[2] for r in rawData if r[1] <= dateInit])
+
+
+# Define target period over which an average will be computed
+# -----------------------------------------------------------
+hemi = "north"
+d = 0
+keepGoing = True
+while keepGoing:
+    leadDate = dateInit + datetime.timedelta(days = d)
+    
+    if hemi == "north":
+        if leadDate.month == 9 and leadDate.day == 1:
+            targetDateMin = leadDate
+            targetDateMax = datetime.date(leadDate.year, 9, 30)
+            keepGoing = False
+
+    elif hemi == "south":
+        if leadDate.month == 2 and leadDate.day == 1:
+            print("hello")
+            targetDateMin = leadDate
+            targetDateMax = datetime.date(leadDate.year, 2, 28)
+            keepGoing = False
+    
+  
+    else:
+        sys.exit("Hemisphere unknown")
+    d += 1
+
+
+
+# Computation of anomalies of the historical data
 anomalies = computeAnomalies(time, series, order, periodicity = 365)
 
+# Computation of the background
 background = series - anomalies
 
-fig, ax = plt.subplots(3, 1, dpi = 300, figsize = (6, 8))
 
-
-
-
-
-timeInit = time[-1]
 
 # !! Warning always include the initial time (0) in the set of leadTimes
 # This is needed to compute the forecast variance, as it depends on the
 # background estimate at initial time.
 
-leadTimes = np.arange(0, 120, 10)
+
+datesLeadTimes = [dateInit + datetime.timedelta(days = float(l)) for l in leadTimes]
 
 backgroundForecast, backgroundStd = extrapolateBackground(time, series, order, \
-                                           leadTimes + time[-1], periodicity = 365)
-    
-# Show background forecast
-ax[1].plot(time, background, "brown", label = "Background")
-ax[1].plot(timeInit + leadTimes, backgroundForecast, lw = 0.5, color = "brown",\
-              label = "Background forecast")
-ax[1].fill_between(timeInit + leadTimes, backgroundForecast -  backgroundStd, \
-                                         backgroundForecast +  backgroundStd, \
-                                         color = "brown", alpha = 0.3, lw = 0)    
+                                leadTimes + time[-1], periodicity = 365)
 
-    
 anomalyForecast, autocorrel =  dampedAnomalyForecast(time, anomalies, \
                                 leadTimes)
 
 forecast = anomalyForecast + backgroundForecast
     
+outlook = np.mean([z[0] for z in zip(forecast, datesLeadTimes) \
+                   if z[1] >= targetDateMin and z[1] <= targetDateMax])
+
+# Plots
+# -----
+
+fig, ax = plt.subplots(3, 1, dpi = 300, figsize = (6, 12))
+
+    
+# Show background forecast
+ax[1].plot(dates, background, "brown", label = "Background")
+ax[1].plot(datesLeadTimes, backgroundForecast, lw = 0.5, color = "brown",\
+              label = "Background forecast")
+ax[1].fill_between(datesLeadTimes, backgroundForecast -  backgroundStd, \
+                                         backgroundForecast +  backgroundStd, \
+                                         color = "brown", alpha = 0.3, lw = 0)    
+
+    
+
 
 # Show initial time
-ax[2].plot(time, anomalies, color = "darkgreen")
+ax[2].plot(dates, anomalies, color = "darkgreen")
 
-ax[2].plot(timeInit + leadTimes, anomalyForecast, lw = 0.5 , \
+ax[2].plot(datesLeadTimes, anomalyForecast, lw = 0.5 , \
              color = "darkgreen", \
              label = "Damped anomaly forecast")
 
 # Compute forecast std
 forecastStd = np.sqrt((autocorrel * backgroundStd[0] - backgroundStd) ** 2)
 
-ax[0].plot(time, series, color = "k", label = "Raw data")
-ax[0].plot(timeInit + leadTimes, forecast, lw = 0.5, color = "k", \
+ax[0].plot(dates, series, color = "k", label = "Raw data")
+ax[0].plot(datesLeadTimes, forecast, lw = 0.5, color = "k", \
              label = "Damped anomaly persistence forecast")
-ax[0].fill_between(timeInit + leadTimes, forecast -  forecastStd, \
-                                         forecast +  forecastStd, \
-                                         color = "k", alpha = 0.3, lw = 0)    
+ax[0].fill_between(datesLeadTimes,       forecast -  1.96 * forecastStd, \
+                                         forecast +  1.96 * forecastStd, \
+                                         color = "k", alpha = 0.4, lw = 0)
+
     
 
 
-for a in ax:
-    a.set_ylim(-6, 6)
+for j, a in enumerate(ax):
+    if j != 2:
+        a.set_ylim(0, 16)
+        #a.set_ylim(14, 15)
+    else:
+        a.set_ylim(-3.0, 3.0)
+        #a.set_ylim(0.0, 1.0)
     a.grid()
-    a.set_xlim(timeInit - 365, timeInit + 2 * leadTimes[-1])
-    a.legend()
+    a.set_xlim(datetime.date(2021,1, 1), datesLeadTimes[-1])
+    #a.set_xlim(datetime.date(2021, 2, 1), datetime.date(2021, 2, 10))
+    a.set_axisbelow(True)
     
+    for label in a.get_xticklabels():
+        label.set_ha("right")
+        label.set_rotation(45)
+        
+    a.fill_between((targetDateMin, targetDateMax), (-1e9, -1e9), (1e9, 1e9), \
+                   alpha = 0.2, label = "Target period")
+
+    a.legend()
+
+fig.tight_layout()
 fig.savefig("./fig.png")
+
+
+
+
+
+

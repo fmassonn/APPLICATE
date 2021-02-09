@@ -59,7 +59,7 @@ if not os.path.isdir("./figs"):
 mode = "oper"
 freq = "daily"
 # Domain and variable definition
-hemi = "north"
+hemi = "south"
 diag = "extent"
 
 # Image resolution
@@ -120,10 +120,11 @@ with open("./data/" + filein, 'r') as csvfile:
 yearb = rawdata[0][0].year
 yeare = rawdata[-1][0].year
 nyear = yeare - yearb + 1
+# Number of days per year
 nday  = 365
 
 # Create data array
-data = np.full((nyear, nday), np.nan)
+data = np.full(nyear * nday, np.nan)
 
 # Fill it: loop over the raw data and store the extent value
 for r in rawdata:
@@ -142,9 +143,9 @@ for r in rawdata:
         # To match Pythonic conventions    
         col = doy - 1
         
-        data[row, col] = r[1]
+        data[row * nday + col] = r[1]
     
-
+stop()
 
 # Forecast function
 # -----------------
@@ -235,7 +236,7 @@ def damped_anomaly_persistence_forecast(inidate):
         #          t_M^q  t_M^(q-1) ... t_M  1
         # and
         #      A = [a_0 a_1 a_2 ... a_q]'
-        #     is the vector of coefficients ofthe regression 
+        #     is the vector of coefficients of the regression 
         #      (the ' denotes transpose)
         #     and Y_hat is the M-dimensional vector that we hope is 
         #     close to the data we fit

@@ -11,23 +11,26 @@ Created on Tue Feb  2 13:22:33 2021
 # - allow unevenly spaced data in time
 # - check if forecast gives expected behavior on one case
 # - What happens when attempting to predict yesterday or today?
+# - check agreement with Charctic's page
 
 import calendar
 import csv
 import datetime
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates  as mdates
 import os
+import sys
 import wget
 
 np.random.seed(3)
 
-order = 2
+order = 0
 
 global hemi; hemi = "north"
 global dateRef; dateRef = datetime.date(1900, 1, 1)
 
-def downloadData(mode = ""):
+def downloadData(hemi = "north"):
     # Retrieving the data source file
     # -------------------------------
 
@@ -49,7 +52,7 @@ def downloadData(mode = ""):
         wget.download(rootdir + filein, out = "./data/")
 
 
-
+def loadData(hemi = "north"):
     # Reading the data
     # ----------------
     
@@ -59,7 +62,8 @@ def downloadData(mode = ""):
     # of autocorrelation easier later on.
     # The 29th of February of leap years are excluded for 
     # ease of analysis
-        
+    
+    filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"    
         
     # Index for looping through rows in the input file
     j = 0
@@ -159,7 +163,8 @@ def downloadData(mode = ""):
         
 #         data[row * nday + col] = r[1]
         
-        
+def loadVerifData(hemi = "north"):
+    pass    
         
 def dampedAnomalyForecast(time, series, leadTimes):
     """
@@ -357,137 +362,203 @@ def extrapolateBackground(time, series, order, extrapTime, periodicity = None):
 # FORECAST
 # --------
 
-
-#time = np.arange(365*30)
-#series = createSyntheticData(time)
-rawData = downloadData(mode = "oper")
-
-
-# Possibly screen the data first
-dateInit = rawData[-1][1] # datetime.date(2020, 6, 1)
-timeInit = rawData[-1][0]
-
-leadTimes = np.arange(0, 365, 3)
-
-time   = np.array([r[0] for r in rawData if r[1] <= dateInit])
-dates  =          [r[1] for r in rawData if r[1] <= dateInit]
-series = np.array([r[2] for r in rawData if r[1] <= dateInit])
-
-
-# Define target period over which an average will be computed
-# -----------------------------------------------------------
-hemi = "north"
-d = 0
-keepGoing = True
-while keepGoing:
-    leadDate = dateInit + datetime.timedelta(days = d)
+def forecast(hemi = "north", dateInit = None, getData = False):
     
-    if hemi == "north":
-        if leadDate.month == 9 and leadDate.day == 1:
-            targetDateMin = leadDate
-            targetDateMax = datetime.date(leadDate.year, 9, 30)
-            keepGoing = False
-
-    elif hemi == "south":
-        if leadDate.month == 2 and leadDate.day == 1:
-            print("hello")
-            targetDateMin = leadDate
-            targetDateMax = datetime.date(leadDate.year, 2, 28)
-            keepGoing = False
+    """
+    dateInit defines the initialization date. If None, takes the
+    latest date of the latest available input data. 
+    In all case, no data after dateInit
+    is used to make the forecast
     
-  
+    dateInit has to be a valid date among the data used to train the
+    prediction system. The following cases won't work:
+        - dateInit greater than the latest date of available data
+        - dateInit less than the earliest date of available data
+        - dateInit corresponding to a date for which there was no data
+    
+    """
+
+    
+
+    if dateInit is None:
+        if getData:
+            downloadData(hemi = hemi)
+            
+        rawData = loadData(hemi = hemi)
+        dateInit = rawData[-1][1] # datetime.date(2020, 6, 1)
+        timeInit = rawData[-1][0]
     else:
-        sys.exit("Hemisphere unknown")
-    d += 1
-
-
-
-# Computation of anomalies of the historical data
-anomalies = computeAnomalies(time, series, order, periodicity = 365)
-
-# Computation of the background
-background = series - anomalies
-
-
-
-# !! Warning always include the initial time (0) in the set of leadTimes
-# This is needed to compute the forecast variance, as it depends on the
-# background estimate at initial time.
-
-
-datesLeadTimes = [dateInit + datetime.timedelta(days = float(l)) for l in leadTimes]
-
-backgroundForecast, backgroundStd = extrapolateBackground(time, series, order, \
-                                leadTimes + time[-1], periodicity = 365)
-
-anomalyForecast, autocorrel =  dampedAnomalyForecast(time, anomalies, \
-                                leadTimes)
-
-forecast = anomalyForecast + backgroundForecast
-    
-outlook = np.mean([z[0] for z in zip(forecast, datesLeadTimes) \
-                   if z[1] >= targetDateMin and z[1] <= targetDateMax])
-
-# Plots
-# -----
-
-fig, ax = plt.subplots(3, 1, dpi = 300, figsize = (6, 12))
-
-    
-# Show background forecast
-ax[1].plot(dates, background, "brown", label = "Background")
-ax[1].plot(datesLeadTimes, backgroundForecast, lw = 0.5, color = "brown",\
-              label = "Background forecast")
-ax[1].fill_between(datesLeadTimes, backgroundForecast -  backgroundStd, \
-                                         backgroundForecast +  backgroundStd, \
-                                         color = "brown", alpha = 0.3, lw = 0)    
-
-    
-
-
-# Show initial time
-ax[2].plot(dates, anomalies, color = "darkgreen")
-
-ax[2].plot(datesLeadTimes, anomalyForecast, lw = 0.5 , \
-             color = "darkgreen", \
-             label = "Damped anomaly forecast")
-
-# Compute forecast std
-forecastStd = np.sqrt((autocorrel * backgroundStd[0] - backgroundStd) ** 2)
-
-ax[0].plot(dates, series, color = "k", label = "Raw data")
-ax[0].plot(datesLeadTimes, forecast, lw = 0.5, color = "k", \
-             label = "Damped anomaly persistence forecast")
-ax[0].fill_between(datesLeadTimes,       forecast -  1.96 * forecastStd, \
-                                         forecast +  1.96 * forecastStd, \
-                                         color = "k", alpha = 0.4, lw = 0)
-
-    
-
-
-for j, a in enumerate(ax):
-    if j != 2:
-        a.set_ylim(0, 16)
-        #a.set_ylim(14, 15)
-    else:
-        a.set_ylim(-3.0, 3.0)
-        #a.set_ylim(0.0, 1.0)
-    a.grid()
-    a.set_xlim(datetime.date(2021,1, 1), datesLeadTimes[-1])
-    #a.set_xlim(datetime.date(2021, 2, 1), datetime.date(2021, 2, 10))
-    a.set_axisbelow(True)
-    
-    for label in a.get_xticklabels():
-        label.set_ha("right")
-        label.set_rotation(45)
+        if getData:
+            downloadData(hemi = hemi)
+            
+        rawData = loadData(hemi = hemi)
         
-    a.fill_between((targetDateMin, targetDateMax), (-1e9, -1e9), (1e9, 1e9), \
-                   alpha = 0.2, label = "Target period")
+        # Remove all data past dateInit
+        
+        rawData = [r for r in rawData if r[1] <= dateInit]
+        timeInit = rawData[-1][0]
+    
+    
+    
+    if not dateInit in [r[1] for r in rawData]:
+        sys.exit("(forecast) STOP, dateInit not in range")
+        
 
-    a.legend()
+    
+    leadTimes = np.arange(0, 365, 2)
 
-fig.tight_layout()
-fig.savefig("./fig.png")
+    time   = np.array([r[0] for r in rawData if r[1] <= dateInit])
+    dates  =          [r[1] for r in rawData if r[1] <= dateInit]
+    series = np.array([r[2] for r in rawData if r[1] <= dateInit])
+
+
+    # Define target period over which an average will be computed
+    # -----------------------------------------------------------
+    d = 0
+    keepGoing = True
+    while keepGoing:
+        leadDate = dateInit + datetime.timedelta(days = d)
+        
+        if hemi == "north":
+            if leadDate.month == 9 and leadDate.day == 1:
+                targetDateMin = leadDate
+                targetDateMax = datetime.date(leadDate.year, 9, 30)
+                keepGoing = False
+    
+        elif hemi == "south":
+            if leadDate.month == 2 and leadDate.day == 1:
+                targetDateMin = leadDate
+                targetDateMax = datetime.date(leadDate.year, 2, 28)
+                keepGoing = False
+        
+      
+        else:
+            sys.exit("Hemisphere unknown")
+        d += 1
+
+
+    # Computation of anomalies of the historical data
+    anomalies = computeAnomalies(time, series, order, periodicity = 365)
+    
+    # Computation of the background
+    background = series - anomalies
+    
+    
+    
+    # !! Warning always include the initial time (0) in the set of leadTimes
+    # This is needed to compute the forecast variance, as it depends on the
+    # background estimate at initial time.
+    
+    
+    datesLeadTimes = [dateInit + datetime.timedelta(days = \
+                                    float(l)) for l in leadTimes]
+    
+    backgroundForecast, backgroundStd = extrapolateBackground(time, \
+                                                     series, order, \
+                                    leadTimes + time[-1], periodicity = 365)
+    
+    anomalyForecast, autocorrel =  dampedAnomalyForecast(time, anomalies, \
+                                    leadTimes)
+    
+    forecast = anomalyForecast + backgroundForecast
+        
+    outlook = np.mean([z[0] for z in zip(forecast, datesLeadTimes) \
+                       if z[1] >= targetDateMin and z[1] <= targetDateMax])
+        
+        
+    
+
+    # Plots
+    # -----
+    
+    fig, ax = plt.subplots(3, 1, dpi = 300, figsize = (4, 9))
+    
+        
+    # Show background forecast
+    ax[1].plot(dates, background, "brown", label = "Background")
+    ax[1].plot(datesLeadTimes, backgroundForecast, lw = 0.5, color = "brown",\
+                  label = "Background forecast")
+    ax[1].fill_between(datesLeadTimes, backgroundForecast -  backgroundStd, \
+                                             backgroundForecast + \
+                                                 backgroundStd, \
+                                      color = "brown", alpha = 0.3, lw = 0)    
+    
+        
+    
+    
+    # Show initial time
+    ax[2].plot(dates, anomalies, color = "darkgreen", label = "Anomalies")
+    
+    ax[2].plot(datesLeadTimes, anomalyForecast, lw = 0.5 , \
+                 color = "darkgreen", \
+                 label = "Damped anomaly forecast")
+    
+    # Compute forecast std
+    forecastStd = np.sqrt((autocorrel * backgroundStd[0] - backgroundStd) ** 2)
+    
+    ax[0].plot(dates, series, color = "k", label = "Raw data")
+    ax[0].plot(datesLeadTimes, forecast, lw = 0.5, color = "k", \
+                 label = "Damped anomaly persistence forecast")
+    ax[0].fill_between(datesLeadTimes,       forecast -  1.96 * forecastStd, \
+                                             forecast +  1.96 * forecastStd, \
+                                             color = "k", alpha = 0.4, lw = 0)
+    
+        
+    
+    
+    for j, a in enumerate(ax):
+        if j != 2:
+            a.set_ylim(0, 20)
+            #a.set_ylim(14, 15)
+        else:
+            a.set_ylim(-3.0, 3.0)
+            #a.set_ylim(0.0, 1.0)
+        a.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %Y'))
+        a.grid()
+        a.set_xlim(dateInit + datetime.timedelta(days = - 365), \
+                   datesLeadTimes[-1])
+        a.set_axisbelow(True)
+        a.set_ylabel("Million km$^2$")
+        
+        myTicks = list(set([datetime.date(d.year, d.month, 1) for d in datesLeadTimes]))
+        a.set_xticks(myTicks)
+        
+        for label in a.get_xticklabels():
+            label.set_ha("right")
+            label.set_rotation(45)
+            
+        a.fill_between((targetDateMin, targetDateMax), (-1e9, -1e9), (1e9, 1e9), \
+                       alpha = 0.2, label = "Target period")
+        print(targetDateMin, targetDateMax)
+    
+        a.legend()
+    
+    fig.suptitle("Sea ice extent forecast")
+    fig.tight_layout()
+    fig.savefig("./fig.png")
+
+
+    return outlook
+
+
+# Load verification data
+# ----------------------
+# These are not necesarily the same data as the data used to train the model
+verifData = loadVerifData(hemi = "north")
+
+# Run hindcasts
+# -------------
+#for year in np.arange(1989, 2020):
+#    outlook = forecast(dateInit = datetime.date(year, 2, 8))
+#    print(str(year) + ": " + str(outlook))
+
+
+
+
+
+
+
+
 
 
 

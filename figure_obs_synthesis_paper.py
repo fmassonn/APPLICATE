@@ -92,11 +92,14 @@ ax.text(145, 30.0, "SUMMER", fontweight = "bold", \
 
 #ax.grid()
 ax.set_ylabel("Latitude [°N]", fontproperties=prop)
-ax.set_xlabel("Observation density (km$^{-2}$)", fontproperties=prop)
+ax.set_xlabel("Observation density (# / 1000 km$^{2}$)", fontproperties=prop)
 ax.set_xticks(np.concatenate((-(shift + np.array([300, 200, 100, 0])), \
                                 shift + np.array([0, 100, 200, 300]))))
 ax.set_xticklabels( ["300", "200", "100", "0", "0", "100", "200", "300"])
 
+for tick in [-300, -200, -100, 100, 200, 300]:
+    ax.plot((np.sign(tick) * shift + tick, np.sign(tick) * shift + tick), (0, 90), \
+            "grey", zorder = - 10, lw = 0.5)
 
 
 for label in ax.get_xticklabels():

@@ -36,6 +36,7 @@ import calendar
 import datetime
 import matplotlib.dates  as mdates
 import scipy.stats
+import matplotlib.dates as mdates
 
 from datetime import timedelta
 from dateutil.relativedelta import relativedelta

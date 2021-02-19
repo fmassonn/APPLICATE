@@ -12,6 +12,7 @@ Created on Tue Feb  2 13:22:33 2021
 # - check if forecast gives expected behavior on one case
 # - What happens when attempting to predict yesterday or today?
 # - check agreement with Charctic's page
+# - remove hard-coded leadTimes variable in forecast()
 
 import calendar
 import csv
@@ -20,12 +21,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates  as mdates
 import os
+import scipy.stats
 import sys
 import wget
 
 np.random.seed(3)
 
-order = 0
+type_trend = ["Climatology", "Linear", "Quadratic", "Cubic"]
+order = 2
 
 global hemi; hemi = "north"
 global dateRef; dateRef = datetime.date(1900, 1, 1)
@@ -41,13 +44,10 @@ def downloadData(hemi = "north"):
                "/daily/data/"
     filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
     
-    if mode == "oper":
-        if os.path.exists("./data/" + filein):
-            os.remove("./data/" + filein)
+    #if mode == "oper":
+    if os.path.exists("./data/" + filein):
+        os.remove("./data/" + filein)
         wget.download(rootdir + filein, out = "./data/")
-        
-    elif os.path.exists("./data/" + filein):
-        print("File already exists, not downloading")
     else:
         wget.download(rootdir + filein, out = "./data/")
 
@@ -362,7 +362,7 @@ def extrapolateBackground(time, series, order, extrapTime, periodicity = None):
 # FORECAST
 # --------
 
-def forecast(hemi = "north", dateInit = None, getData = False):
+def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
     
     """
     dateInit defines the initialization date. If None, takes the
@@ -378,7 +378,8 @@ def forecast(hemi = "north", dateInit = None, getData = False):
     
     """
 
-    
+    # Set dateInit if not given
+    # First, load the data
 
     if dateInit is None:
         if getData:
@@ -386,33 +387,27 @@ def forecast(hemi = "north", dateInit = None, getData = False):
             
         rawData = loadData(hemi = hemi)
         dateInit = rawData[-1][1] # datetime.date(2020, 6, 1)
-        timeInit = rawData[-1][0]
     else:
         if getData:
             downloadData(hemi = hemi)
             
         rawData = loadData(hemi = hemi)
         
-        # Remove all data past dateInit
+
         
-        rawData = [r for r in rawData if r[1] <= dateInit]
-        timeInit = rawData[-1][0]
+    # At this stage dateInit has a value. We can thus create variables
+    # with initialization year and month and day
     
-    
-    
+    # We stop if the date Init is not in the range of dates
     if not dateInit in [r[1] for r in rawData]:
         sys.exit("(forecast) STOP, dateInit not in range")
-        
 
+    yearInit = dateInit.year
     
-    leadTimes = np.arange(0, 365, 2)
-
-    time   = np.array([r[0] for r in rawData if r[1] <= dateInit])
-    dates  =          [r[1] for r in rawData if r[1] <= dateInit]
-    series = np.array([r[2] for r in rawData if r[1] <= dateInit])
 
 
-    # Define target period over which an average will be computed
+
+    # Define target period over which an outlook will be computed
     # -----------------------------------------------------------
     d = 0
     keepGoing = True
@@ -436,6 +431,25 @@ def forecast(hemi = "north", dateInit = None, getData = False):
             sys.exit("Hemisphere unknown")
         d += 1
 
+    
+
+    # Remove all data past dateInit to make sure we are not using future
+    # data to train the model. Just before doing this, we record the 
+    # verification outlook to output it if asked
+    if verif:
+        verifOutlook = np.mean(np.array([r[2] for r in rawData if \
+            r[1] >= targetDateMin and r[1] <= targetDateMax]))
+    else:
+        verifOutlook = np.nan
+        
+        
+    # Subset the data to make sure we don't use future data
+    rawData = [r for r in rawData if r[1] <= dateInit]
+    
+    time   = np.array([r[0] for r in rawData])
+    dates  =          [r[1] for r in rawData]
+    series = np.array([r[2] for r in rawData])
+    
 
     # Computation of anomalies of the historical data
     anomalies = computeAnomalies(time, series, order, periodicity = 365)
@@ -448,7 +462,7 @@ def forecast(hemi = "north", dateInit = None, getData = False):
     # !! Warning always include the initial time (0) in the set of leadTimes
     # This is needed to compute the forecast variance, as it depends on the
     # background estimate at initial time.
-    
+    leadTimes = np.arange(0, 365)
     
     datesLeadTimes = [dateInit + datetime.timedelta(days = \
                                     float(l)) for l in leadTimes]
@@ -465,7 +479,7 @@ def forecast(hemi = "north", dateInit = None, getData = False):
     outlook = np.mean([z[0] for z in zip(forecast, datesLeadTimes) \
                        if z[1] >= targetDateMin and z[1] <= targetDateMax])
         
-        
+
     
 
     # Plots
@@ -504,7 +518,7 @@ def forecast(hemi = "north", dateInit = None, getData = False):
                                              color = "k", alpha = 0.4, lw = 0)
     
         
-    
+
     
     for j, a in enumerate(ax):
         if j != 2:
@@ -529,31 +543,442 @@ def forecast(hemi = "north", dateInit = None, getData = False):
             
         a.fill_between((targetDateMin, targetDateMax), (-1e9, -1e9), (1e9, 1e9), \
                        alpha = 0.2, label = "Target period")
-        print(targetDateMin, targetDateMax)
+        #print(targetDateMin, targetDateMax)
     
         a.legend()
     
     fig.suptitle("Sea ice extent forecast")
     fig.tight_layout()
-    fig.savefig("./fig.png")
+    directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    fig.savefig(directory + "/rawOutlook_" + hemi + ".png")
+    plt.close(fig)
+
+    return outlook, verifOutlook
 
 
-    return outlook
+# Run forecast
+# ------------
+#
+# Define initialization date (set to None for latest in sample)
+
+dateInit = None
+#dateInit = datetime.date(2020, 11, 30)
+
+# Set hemisphere
+hemi = "north"
 
 
-# Load verification data
-# ----------------------
+# Run the raw forecast
+
+outlook, _ = forecast(hemi = hemi, dateInit = dateInit)
+
+print("Raw outlook: " + str(np.round(outlook, 2)) + " million km2")
+
+# Post-processing
+# ---------------
+
+# Load verification outlooks
+# --------------------------
 # These are not necesarily the same data as the data used to train the model
-verifData = loadVerifData(hemi = "north")
+# In this case they are, but this might change (e.g., NSIDC is the target but
+# OSISAF is the training data)
+#verifData = loadData(hemi = "north")
 
 # Run hindcasts
 # -------------
-#for year in np.arange(1989, 2020):
-#    outlook = forecast(dateInit = datetime.date(year, 2, 8))
-#    print(str(year) + ": " + str(outlook))
+
+# Get initialization day and month to run hindcasts
+# If dateInit was set to None, fetch the information from the loaded Data
+if dateInit is None:
+    dateInit = loadData(hemi)[-1][1]
+    
+dayInit   = dateInit.day
+monthInit = dateInit.month
+yearInit  = dateInit.year
+
+
+allOutlooks = list()
+allVerifOutlooks = list()
+allYears = list()
+
+for year in np.arange(1989, 2020):
+    outlook, verifOutlook = forecast(hemi = hemi, dateInit = \
+              datetime.date(year, monthInit, dayInit), \
+              getData = False, verif = True)
+    print(str(year) + ": " + str(np.round(outlook, 2)) + " million km2 " + \
+          "(verification: " + str(np.round(verifOutlook, 2)) + ")")
+    
+    allOutlooks.append(outlook)
+    allVerifOutlooks.append(verifOutlook)
+    allYears.append(year)
+    
+    
+
+
+# Verification and bias correction.
+fig, axes = plt.subplots(1, 2, figsize = (10, 5), dpi = 300)# dpi)
+    
+ax = axes[0]
+ax.grid()
+# if hemi == "north":
+#     ax.set_ylim(0.0, 8.0)
+# elif hemi == "south":
+#     ax.set_ylim(15.0, 22.0)
+        
+ax.plot(allYears, allOutlooks, color = [1, 0.5, 0.0], marker = "s", 
+        label = "Hindcasts")
+ax.plot(allYears, allVerifOutlooks, color = [0.0, 0.0, 0.0], \
+        marker = "s", 
+        label = "Verification data")
+ax.set_ylabel("10$^6$ km$^2$")
+ax.legend()
+    
+    
+    
+ax = axes[1]
+ax.grid()
+
+
+    
+ax.set_title("Verification and recalibration")
+# if hemi == "north":
+#     ax.set_xlim(2.0, 8.0)
+#     ax.set_ylim(2.0, 8.0)
+# elif hemi == "south":
+#     ax.set_xlim(17.0, 20.0)
+#     ax.set_ylim(17.0, 20.0)
+ax.set_xlabel("Forecast [10$^6$ km$^2$]")
+ax.set_ylabel("Verification [10$^6$ km$^2$]")
+ax.scatter(allOutlooks, allVerifOutlooks, 200, marker = "s", \
+           color = "green", \
+           alpha = 0.5, label = "Hindcasts")
+[ax.text(   allOutlooks[j], allVerifOutlooks[j],  \
+         str(allYears[j]), 
+         color = "white", ha = "center", va = "center", fontsize = 5) \
+    for j in range(len(allOutlooks)  - 1)]
+    
+
+# Regress forecasts on verification to determine recalibrated forecast
+x = np.array(allOutlooks)
+y = np.array(allVerifOutlooks)
+n = len(x)
+xbar = np.mean(x)
+ybar = np.mean(y)
+xtil = x - xbar
+ytil = y - ybar
+ahat = np.sum(xtil * ytil) / np.sum(xtil ** 2)
+bhat = ybar - ahat * xbar
+yhat = ahat * x + bhat
+res = y - yhat
+se2 = 1.0 / (n - 2) * np.sum(res ** 2)
+
+# Detrend
+xd = x - np.polyval(np.polyfit(np.arange(len(x)), x, 2), \
+                    np.arange(len(x)))
+yd = y - np.polyval(np.polyfit(np.arange(len(y)), y, 2), \
+                    np.arange(len(y)))
+
+# Prediction Interval function . Eq. 6.22 of
+# Daniel S. Wilks, Statistical methods in the atmospheric sciences, \
+# 2nd ed, International geophysics series, v. 91 
+# (Amsterdam ; Boston: Academic Press, 2006).
+def spred(xin):
+    return np.sqrt(se2 * (1 + 1 / n + (xin - xbar) ** 2 / \
+                          np.sum(xtil ** 2)))
+
+# Sample variable to show PDFs etc.
+xx = np.linspace(0.0, 30.0, 10000)
+
+fit = ahat * xx + bhat
+ax.plot(xx, fit, color = "green", label = "Regression")
+ax.fill_between(xx, fit - 1.96 * spred(xx), fit + 1.96 * spred(xx), 
+                color = "green", alpha = 0.2, lw = 0, 
+                label = "Prediction\n95% confidence interval")
+
+# Display correlations
+ax.text(5.5, 3.5, "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
+    "\n(detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")")
+
+# Print re-processed forecast
+if hemi == "north":
+    xtext, ytext = 5.5, 2.5
+elif hemi == "south":
+    xtext, ytext = 19.0, 17.8
+    
+ax.text(xtext, ytext    , "This forecast:\n" + 
+        str(np.round(ahat * outlook + bhat, 2)) + 
+        " [" + str(np.round(ahat * outlook + bhat - 
+                            1.96 * spred(outlook), 2)) +  " - " +
+                str(np.round(ahat * outlook + bhat + 
+                            1.96 * spred(outlook), 2)) + \
+                            "]\n" + "$10^6$ km$^2$")
+
+ax.legend(loc = "upper left")
+
+lims = ax.get_xlim()
+
+ax.plot((-1e9, 1e9), (-1e9, 1e9), color = "k", lw = 1, label = "y = x")
+ax.plot((outlook, outlook), (-1e9, 1e9), "red", 
+        label = "This outlook")
+
+ax.set_xlim(lims[0], lims[1])
+
+
+directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
+if not os.path.exists(directory):
+        os.makedirs(directory)
+
+fig.savefig(directory + "/verif-postproc_order" + \
+            str(order) + "_" + 
+                str(dateInit) + "_" + hemi + ".png")
 
 
 
+# Presentation of the outlook
+# ---------------------------
+# The outlook is a way to communicate the probability that certain events
+# happen. Events are defined by a vector of percentiles
+# 
+# For a n-long vector of percentiles, the forecast probabilities of the 
+# following n + 1 events will be plotted
+# 1) below lowest percentile. If that percentile is 0, it means 
+#    breaking record low
+# 2) between first and second percentile
+# ...
+# n) between n-1 th and nth percentile
+# n+1) above highest percentile. If that percentile, it means 
+# breaking record high))
+
+percentiles = [0.0, 5.0, 10.0, 30.0, 70.0, 100.0]
+colors = [plt.cm.RdYlBu(int(255 / 100 * 0.5 * (percentiles[j - 1] + \
+                     percentiles[j]))) for j in range(1, len(percentiles))]
+
+fig, ax = plt.subplots(1, 1, figsize = (5, 3), dpi = 300)
+ax.grid()
+# if hemi == "north":
+#     ax.set_xlim(2.0, 10.0)
+# elif hemi == "south":
+#     ax.set_xlim(15.0, 22.0)
+ax.set_ylim(-0.2, 1.0)
+ax.set_xlabel("Target mean sea ice extent [10$^6$ km$^2$]")
+
+# Best estimate
+mu = ahat * outlook + bhat
+sig= spred(outlook)
+
+ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
+
+
+# Define thresholds from the observed data based on provided percentiles
+mythreshs   = np.percentile(allVerifOutlooks, percentiles)
+
+
+for j in range(1, len(mythreshs)):
+    xxtmp = np.linspace(mythreshs[j - 1], mythreshs[j], 10000)
+    ax.fill_between(xxtmp, scipy.stats.norm.pdf(xxtmp, mu, sig), 
+                color = colors[j - 1], alpha = 0.8 , lw = 0.0, \
+                  label = "Obs. " + str(int(percentiles[j - 1])) + 
+                  "-" + str(int(percentiles[j])) + " %")
+    
+    # Plot bars for extremes if requested
+    if percentiles[j - 1] == 0.0:
+        ax.plot((mythreshs[j - 1], mythreshs[j - 1]), (-1e9, 1e9), \
+                color = "red", label = "Lowest record to date")
+        ax.arrow(mythreshs[j - 1], - 0.07, -0.4, 0.0, color = "red", 
+                  head_width = 0.05)
+        probmin = scipy.stats.norm.cdf(mythreshs[j - 1], mu, sig)
+        ax.text(mythreshs[j - 1], - 0.1, str(np.round(probmin * 100, 1)) + 
+        " % ", va = "top", ha = "right", color = "red", alpha = 0.8)
+    if percentiles[j] == 100.0:
+        ax.plot((mythreshs[j], mythreshs[j]), (-1e9, 1e9), \
+                color = "blue", label = "Highest record to date")
+        ax.arrow(mythreshs[j], - 0.07, 0.4, 0.0, color = "blue", 
+                  head_width = 0.05)
+        probmax = 1.0 - scipy.stats.norm.cdf(mythreshs[j], mu, sig)
+        ax.text(mythreshs[j], - 0.1, " " + \
+                str(np.round(probmax * 100, 1)) + 
+        " % ", va = "top", ha = "left", color = "blue", alpha = 0.8)
+   
+    
+# Display trend extrapolation forecast
+trend_fc = np.polyval(np.polyfit(range(len(allVerifOutlooks)), \
+            allVerifOutlooks, order), len(allVerifOutlooks) + 1)
+ax.plot((trend_fc, trend_fc), (0, 1e9), color = "orange",
+        label = str(type_trend[order]) + " extrapolation")\
+
+ax.set_xlim(0.0, np.max(allVerifOutlooks) * 1.2)
+# Plot PDF
+ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", \
+        label = "Forecast PDF")
+    
+    
+    
+# Time-stamp the figure
+ax.text(ax.get_xlim()[1], -0.2,  "\nProduced " +
+        datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + 
+        " | @FMassonnet @applicate_eu", 
+        rotation =90, ha = "left", va = "bottom", fontsize = 5)
+
+ax.legend(ncol = 1, fontsize = 6)
+ax.set_title("Forecast and associated event probabilities\n(initialized "\
+                                                    + str(dateInit) + ")")
+ax.set_axisbelow(True)
+
+
+fig.savefig("./figs/" + str(dateInit) + "/outlook_order" + str(order) + \
+            "_" + str(dateInit) + "_" + hemi + ".png")
+
+plt.close(fig)
+
+
+
+
+# # Time series of probability of various events happening
+# # ------------------------------------------------------
+# cdfs = scipy.stats.norm.cdf(mythreshs, mu, sig)
+# for j in range(len(percentiles)):
+#     myprobs = np.append(np.append(np.array(cdfs[0]), np.diff(cdfs)), \
+#                       np.array(1.0 - cdfs[-1]))
+    
+# if mode == "oper":
+#     pe.append([inidate, myprobs])
+# else:
+#     truth = np.mean([r[1] for r in rawdata if r[0].year == iniyear \
+#                      and r[0].month == 9])
+#     realized = 1 * np.array([truth < mythreshs[0]] + \
+#                     [(truth >= mythreshs[j] and truth < mythreshs[j + 1]) \
+#                     for j in range(len(mythreshs) - 1)] + \
+#                      [truth >= mythreshs[-1]])
+#     pe.append([inidate, myprobs, realized])
+    
+#     if np.sum(realized) != 1:
+#         sys.exit("Two exclusive events cannot realize")
+
+# fig, ax = plt.subplots(1, 1, figsize = (6, 4), dpi = dpi)
+# ax.grid()
+  
+
+# for j in range(len(percentiles)):
+#     if j == 0:
+#         if percentiles[j] == 0:
+#             mylabel = "... breaking record low to date"
+#             mycol = (1.0, 0.0, 0.0, 1.0)
+#         else:
+#             mylabel = "... < obs. " + \
+#               str(int(percentiles[j])) +  " %"
+#             mycol = (1.0, 0.0, 0.0, 1.0)
+        
+#         ax.plot([x[0] for x in pe], [100.0 * x[1][j] for x in pe], 
+#             color = mycol, label = mylabel)
+        
+#         # Also plot the following range
+#         mylabel = "... in obs. " + str(int(percentiles[j])) + \
+#         "-" + str(int(percentiles[j + 1])) + " %"
+#         mycol = colors[j]
+#         ax.plot([x[0] for x in pe], [100.0 * x[1][j + 1] for x in pe], 
+#             color = mycol, label = mylabel)
+        
+        
+    
+#     elif j == len(percentiles) - 1:
+#         if percentiles[j] == 100:
+#             mylabel = "... breaking record high to date"
+#             mycol = (0.0, 0.0, 1.0, 1.0)
+#         else:
+#             mylabel = "... > obs. " + \
+#             str(int(percentiles[j])) +  " %"
+#             mycol = (0.0, 0.0, 1.0, 1.0)
+            
+#         ax.plot([x[0] for x in pe], [100.0 * x[1][j] for x in pe], 
+#             color = mycol, label = mylabel)
+#     else:
+#         mylabel = "... in obs. " + str(int(percentiles[j])) + \
+#         "-" + str(int(percentiles[j + 1])) + " %"
+#         mycol = colors[j]
+#         ax.plot([x[0] for x in pe], [100.0 * x[1][j + 1] for x in pe], 
+#             color = mycol, label = mylabel)
+                 
+
+
+# # Add target
+# ax.fill_between((datetime.date(iniyear, 9, 1), \
+#                 datetime.date(iniyear, 10, 1)), (100, 100), \
+#                 color = "black", alpha = 0.2, lw = 0, \
+#                 label = "Target month")
+
+
+# ax.set_title("Forecast probabilities of\n" + str(iniyear) + \
+#              " September mean sea ice extent ...")
+# ax.set_ylim(0.0, 100.0)
+# ax.set_ylabel("%")
+# ax.set_xlabel("Initialization date")
+
+# ax.set_xlim(datetime.date(iniyear, 1, 1), datetime.date(iniyear, 12, 31))
+# ax.xaxis.set_major_formatter(mdates.DateFormatter('%d %b %y'))
+
+# ax.text(ax.get_xlim()[1], -0.2,  "\nProduced " +
+#         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + 
+#         " | @FMassonnet @applicate_eu", 
+#         rotation =90, ha = "left", va = "bottom", fontsize = 5)
+
+# fig.autofmt_xdate(rotation = 45)
+# ax.legend(loc = "upper right", fontsize = 6)
+# ax.set_facecolor([0.9, 0.9, 0.9])
+# fig.tight_layout()
+# fig.savefig("./figs/" + str(iniyear) + "/events_order" + str(order ) + \
+#             "_" + str(inidate) + ".png")
+# if inidate == startdates[-1]:
+#     if mode == "oper":
+#         fig.savefig("./webpages/operational_outlook.png")# latest available
+#     else:
+#         fig.savefig("./webpages/hindcast_" + mode + "_outlook.png")
+
+# myevents = list()
+# if percentiles[0] == 0.0:
+# myevents.append('"lower than min. on record"')
+# else:
+# myevents.append("< " + str(percentiles[0]) + " % percentile")
+
+# for j in range(0, len(percentiles) - 1):
+# myevents.append(str(percentiles[j]) + " % < $x$ $\leq$ " + str(percentiles[j + 1]) + " %")
+
+# if percentiles[-1] == 100.0:
+# myevents.append("higher than max. on record")
+# else:
+# myevents.append("$\geq$ " + str(percentiles[-1]) + " % percentile")
+
+
+# if mode == "econ":
+
+# for j in range(len(myevents)):
+
+#     fig, ax = plt.subplots(1, 1, figsize = (6, 3), dpi = dpi)        
+    
+#     # Plot forecast probabilities
+#     for k in range(len(pe)):
+#         if pe[k][2][j] == 1:
+#             color = "green"
+#         else:
+#             color = "red"
+#         ax.bar(pe[k][0].year, 100.0 * pe[k][1][j], color = color)
+        
+#         ax.set_title("Forecast probabilities of event " + str(myevents[j]))
+#         ax.set_ylabel("%")
+    
+#     # If I say that event E has probability p to occur then I'm ready to
+#     # give someone a little less than p (say 0.95 p). If I'm wrong, the person
+#     # keeps the money. If I'm right, she gives me 100
+    
+#     ax.grid()
+#     ax.set_axisbelow(True)
+#     fig.savefig("./econ" + str(j) + ".png")
+
+#     moneymade = np.sum([- 0.95 * 100.0 * pe[k][1][j] + 100.0 * \
+#                         pe[k][2][j] for k in range(len(pe))])
+                
+#     print("Money made: " + str(np.round(moneymade)) + " €")
 
 
 

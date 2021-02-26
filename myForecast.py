@@ -547,6 +547,8 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
     
         a.legend()
     
+    print(dateInit)
+    
     fig.suptitle("Sea ice extent forecast")
     fig.tight_layout()
     directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
@@ -567,7 +569,7 @@ dateInit = None
 #dateInit = datetime.date(2020, 11, 30)
 
 # Set hemisphere
-hemi = "north"
+hemi = "south"
 
 
 # Run the raw forecast

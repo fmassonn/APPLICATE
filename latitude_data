@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Nov 30 20:48:28 2020
+
+@author: massonnetf
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+latitude = np.arange(0.0, 90.0, 1)
+
+lat_conv = np.array([p1 for p1 in np.random.rand(10000) \
+                     if p1 + np.random.rand() < 1]) * 90
+
+lat_sat  = np.array([p1 for p1 in np.random.rand(1000000) \
+                     if p1 > np.random.rand() ]) * 90
+
+nb_sat, hist_sat, _ = plt.hist(lat_sat, bins = latitude)
+
+nb_conv, hist_conv, _ = plt.hist(lat_conv, bins = latitude)
+
+
+
+
+fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = 300)
+plt.yscale("log")
+ax.bar(hist_conv[:-1], 90 * nb_conv, alpha = 1, color = "#dc9779", \
+       label = "Conventional", zorder = 1)
+ax.bar(hist_sat[:-1], 90 * nb_sat, alpha = 1, color = "#349fa4", \
+       label = "Satellite", zorder = 0)
+ax.set_xlabel("Latitude ($^\circ$N)")
+ax.set_title("Number of observations assimilated\nin the ECMWF IFS on 1 Dec 2020 1800 UTC")
+ax.set_ylabel("Count")
+ax.set_xlim(10.0, 90.0)
+ax.legend()
+fig.tight_layout()
+fig.savefig("./prototype.png")

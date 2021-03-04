@@ -33,16 +33,26 @@ order = 2
 global hemi; hemi = "north"
 global dateRef; dateRef = datetime.date(1900, 1, 1)
 
-def downloadData(hemi = "north"):
+def downloadData(hemi = "north", dataSet = "OSISAF-v2p1"):
+    
+   
     # Retrieving the data source file
     # -------------------------------
 
     hemi_region = {"south": "Antarctic",
                    "north": "Arctic"   ,
                   }
-    rootdir = "ftp://sidads.colorado.edu/DATASETS/NOAA/G02135/" + hemi + \
-               "/daily/data/"
-    filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
+    hemshort = hemi[0] + hemi[-1]
+    
+    if dataSet == "NSIDC-G02135":
+        rootdir = "ftp://sidads.colorado.edu/DATASETS/NOAA/G02135/" + hemi + \
+                   "/daily/data/"
+        filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
+    elif dataSet == "OSISAF-v2p1":
+        rootdir = "ftp://osisaf.met.no/prod_test/ice/index/v2p1/" + hemshort + "/"
+        filein = "osisaf_" + hemshort + "_sie_daily.txt"
+    else:
+        sys.exit("Dataset unknown")
     
     #if mode == "oper":
     if os.path.exists("./data/" + filein):
@@ -52,7 +62,8 @@ def downloadData(hemi = "north"):
         wget.download(rootdir + filein, out = "./data/")
 
 
-def loadData(hemi = "north"):
+
+def loadData(hemi = "north", dataSet = "OSISAF-v2p1"):
     # Reading the data
     # ----------------
     
@@ -62,25 +73,41 @@ def loadData(hemi = "north"):
     # of autocorrelation easier later on.
     # The 29th of February of leap years are excluded for 
     # ease of analysis
+    hemshort = hemi[0] + hemi[-1]
     
-    filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"    
+    if dataSet == "NSIDC-G02135":
+        filein  = hemi[0].upper() + "_" + "seaice_extent_daily_v3.0.csv"
+        delimiter = ","
+        nbIgnoreLines = 1
+    elif dataSet == "OSISAF-v2p1":
+        filein = "osisaf_" + hemshort + "_sie_daily.txt"
+        delimiter = " "
+        nbIgnoreLines = 7
         
     # Index for looping through rows in the input file
     j = 0
     
+    
     outData = list()
     rawData = list()
     with open("./data/" + filein, 'r') as csvfile:
-      obj = csv.reader(csvfile, delimiter = ",")
-      nd = obj.line_num - 2 # nb data
+      obj = csv.reader(csvfile, delimiter = delimiter)
+
       for row in obj:
-        if j <= 1:
+        if j <= nbIgnoreLines:
           pass
           #print("Ignore, header")
         else:
-            thisDate = datetime.date(int(row[0]), int(row[1]), int(row[2]))
+
+            if dataSet == "NSIDC-G02135":
+                thisDate = datetime.date(int(row[0]), int(row[1]), int(row[2]))
+                thisValue = float(row[3])
+            elif dataSet == "OSISAF-v2p1":
+                thisDate = datetime.date(int(row[1]), int(row[2]), int(row[3]))
+                thisValue = float(row[4]) / 1e6
+                
             timeElapsed = (thisDate - dateRef).days
-            thisValue = float(row[3])
+  
             
             # Only append if not 29 Feb
             if thisDate.month != 2 or thisDate.day != 29:
@@ -132,6 +159,7 @@ def loadData(hemi = "north"):
         outData.append([timeElapsed, d, thisValue])
 
     return outData
+
 
 
 # # Detect first and last years of the sample
@@ -564,13 +592,14 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
 # ------------
 #
 # Define initialization date (set to None for latest in sample)
+dataIn = "OSISAF-v2p1"
 
 dateInit = None
 #dateInit = datetime.date(2020, 11, 30)
 
 # Set hemisphere
-hemi = "south"
-
+#hemi = "south"
+hemi = "north"
 
 # Run the raw forecast
 
@@ -763,7 +792,7 @@ ax.grid()
 #     ax.set_xlim(2.0, 10.0)
 # elif hemi == "south":
 #     ax.set_xlim(15.0, 22.0)
-ax.set_ylim(-0.2, 1.0)
+ax.set_ylim(-0.2, 1.5)
 ax.set_xlabel("Target mean sea ice extent [10$^6$ km$^2$]")
 
 # Best estimate
@@ -814,13 +843,14 @@ ax.set_xlim(0.0, np.max(allVerifOutlooks) * 1.2)
 # Plot PDF
 ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", \
         label = "Forecast PDF")
+maxYvalue = np.max(scipy.stats.norm.pdf(xx, mu, sig))
     
     
     
 # Time-stamp the figure
 ax.text(ax.get_xlim()[1], -0.2,  "\nProduced " +
         datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + 
-        " | @FMassonnet @applicate_eu", 
+        " | @FMassonnet @applicate_eu" + "\nInput data: " + dataIn, 
         rotation =90, ha = "left", va = "bottom", fontsize = 5)
 
 ax.legend(ncol = 1, fontsize = 6)
@@ -829,7 +859,12 @@ ax.set_title("Forecast and associated event probabilities\n(initialized "\
 ax.set_axisbelow(True)
 
 
-fig.savefig("./figs/" + str(dateInit) + "/outlook_order" + str(order) + \
+directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
+if not os.path.exists(directory):
+    os.makedirs(directory)
+        
+fig.tight_layout()
+fig.savefig(directory + "/outlook_order" + str(order) + \
             "_" + str(dateInit) + "_" + hemi + ".png")
 
 plt.close(fig)

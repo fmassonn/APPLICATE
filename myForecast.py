@@ -410,7 +410,8 @@ def extrapolateBackground(time, series, order, extrapTime, periodicity = None):
 # FORECAST
 # --------
 
-def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
+def forecast(hemi = "north", dateInit = None, getData = True, \
+             dataSet = "OSISAF-v2p1", verif = False):
     
     """
     dateInit defines the initialization date. If None, takes the
@@ -431,15 +432,15 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
 
     if dateInit is None:
         if getData:
-            downloadData(hemi = hemi)
+            downloadData(hemi = hemi, dataSet = dataSet)
             
-        rawData = loadData(hemi = hemi)
+        rawData = loadData(hemi = hemi, dataSet = dataSet)
         dateInit = rawData[-1][1] # datetime.date(2020, 6, 1)
     else:
         if getData:
-            downloadData(hemi = hemi)
+            downloadData(hemi = hemi, dataSet = dataSet)
             
-        rawData = loadData(hemi = hemi)
+        rawData = loadData(hemi = hemi, dataSet = dataSet)
         
 
         
@@ -613,7 +614,10 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
     directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
     if not os.path.exists(directory):
         os.makedirs(directory)
-    fig.savefig(directory + "/rawOutlook_" + hemi + ".png")
+    fig.savefig(directory + "/rawOutlook_order" + \
+            str(order) + "_" + \
+                dataIn + "_" +\
+                str(dateInit) + "_" + hemi + ".png")
     plt.close(fig)
 
     return outlook, verifOutlook
@@ -624,6 +628,7 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
 #
 # Product
 dataIn = "OSISAF-v2p1"
+dataIn = "NSIDC-G02135"
 # Define initialization date (set to None for latest in sample)
 dateInit = None
 #dateInit = datetime.date(2021, 5, 1)
@@ -633,7 +638,7 @@ hemi = "south"
 #hemi = "north"
 
 # Run the raw forecast
-outlook, _ = forecast(hemi = hemi, dateInit = dateInit)
+outlook, _ = forecast(hemi = hemi, dateInit = dateInit, dataSet = dataIn)
 
 print("Raw outlook for initial date " + str(dateInit) + ": " + \
       str(np.round(outlook, 2)) + " million km2")
@@ -654,7 +659,7 @@ print("Raw outlook for initial date " + str(dateInit) + ": " + \
 # Get initialization day and month to run hindcasts
 # If dateInit was set to None, fetch the information from the loaded Data
 if dateInit is None:
-    dateInit = loadData(hemi)[-1][1]
+    dateInit = loadData(hemi, dataSet = dataIn)[-1][1]
 
 print(dateInit)
 
@@ -671,7 +676,7 @@ allYears = list()
 for year in np.arange(1989, yearInit):
     outlook, verifOutlook = forecast(hemi = hemi, dateInit = \
               datetime.date(year, monthInit, dayInit), \
-              getData = False, verif = True)
+              getData = False, dataSet = dataIn, verif = True)
     print(str(year) + ": " + str(np.round(outlook, 2)) + " million km2 " + \
           "(verification: " + str(np.round(verifOutlook, 2)) + ")")
     
@@ -793,7 +798,8 @@ if not os.path.exists(directory):
         os.makedirs(directory)
 
 fig.savefig(directory + "/verif-postproc_order" + \
-            str(order) + "_" + 
+            str(order) + "_" + \
+                dataIn + "_" +\
                 str(dateInit) + "_" + hemi + ".png")
 
 
@@ -900,9 +906,11 @@ if not os.path.exists(directory):
     os.makedirs(directory)
         
 fig.tight_layout()
-fig.savefig(directory + "/outlook_order" + str(order) + \
-            "_" + str(dateInit) + "_" + hemi + ".png")
 
+fig.savefig(directory + "/outlook_order" + \
+            str(order) + "_" + \
+                dataIn + "_" +\
+                str(dateInit) + "_" + hemi + ".png")
 plt.close(fig)
 
 

@@ -54,7 +54,6 @@ def downloadData(hemi = "north", dataSet = "OSISAF-v2p1"):
     else:
         sys.exit("Dataset unknown")
     
-    #if mode == "oper":
     if os.path.exists("./data/" + filein):
         os.remove("./data/" + filein)
         wget.download(rootdir + filein, out = "./data/")
@@ -88,41 +87,52 @@ def loadData(hemi = "north", dataSet = "OSISAF-v2p1"):
     j = 0
     
     
-    outData = list()
+
     rawData = list()
-    with open("./data/" + filein, 'r') as csvfile:
-      obj = csv.reader(csvfile, delimiter = delimiter)
-
-      for row in obj:
-        if j <= nbIgnoreLines:
-          pass
-          #print("Ignore, header")
-        else:
-
-            if dataSet == "NSIDC-G02135":
-                thisDate = datetime.date(int(row[0]), int(row[1]), int(row[2]))
-                thisValue = float(row[3])
-            elif dataSet == "OSISAF-v2p1":
-                thisDate = datetime.date(int(row[1]), int(row[2]), int(row[3]))
-                thisValue = float(row[4]) / 1e6
-                
+    
+    
+    if dataSet == "NSIDC-G02135":
+      with open("./data/" + filein, 'r') as csvfile:
+        obj = csv.reader(csvfile, delimiter = delimiter)
+        for row in obj:
+          if j <= nbIgnoreLines:
+            pass
+          else:
+            thisDate = datetime.date(int(row[0]), int(row[1]), int(row[2]))
+            thisValue = float(row[3])
             timeElapsed = (thisDate - dateRef).days
+            
+            if thisDate.month != 2 or thisDate.day != 29:
+              rawData.append(
+              [timeElapsed, thisDate, thisValue])
+            
+          j += 1
+            
+    elif dataSet == "OSISAF-v2p1":
+      with open("./data/" + filein, 'r') as csvfile:
+        obj = csv.reader(csvfile, delimiter = delimiter)
+        for row in obj:
+          if j <= nbIgnoreLines:
+              pass
+          else:
+            if row[5]!= "MISSING":
+              thisDate = datetime.date(int(row[1]), int(row[2]), int(row[3]))
+              thisValue = float(row[4]) / 1e6              
+              timeElapsed = (thisDate - dateRef).days
+
+            # Only append if not 29 Feb
+              if thisDate.month != 2 or thisDate.day != 29:
+                rawData.append(
+                [timeElapsed, thisDate, thisValue])
+          j += 1   
   
             
-            # Only append if not 29 Feb
-            if thisDate.month != 2 or thisDate.day != 29:
-                rawData.append(
-                    [timeElapsed, thisDate, thisValue]
-                    )
-            
-        j = j + 1
+
         
         
     # Now that we have the raw dates, we can create 
     # a list of items for each date, even those for which there is no data.
         
-    outData = list()
-    
 
     # Create list of all dates except 29th of Feb between the first and
     # last dates of rawData
@@ -377,11 +387,21 @@ def extrapolateBackground(time, series, order, extrapTime, periodicity = None):
             
             covfit = XX * np.matrix(cov) * XX.transpose()
      
+    
             stdBackground[k] = np.array([np.sqrt(covfit[i, i]) \
                for i in range(len(XX))])
                 
+            #print(k)
+            #print(stdBackground[k])
+         
+            #print(series)
+            #print("--")
+            #if k >=45:
+            #    stop()
+    
     else:
         sys.exit("Not coded yet")
+
 
     return outBackground, stdBackground
             
@@ -449,9 +469,12 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
                 keepGoing = False
     
         elif hemi == "south":
-            if leadDate.month == 2 and leadDate.day == 1:
+            #if leadDate.month == 2 and leadDate.day == 1:
+            if leadDate.month == 9 and leadDate.day == 1:
                 targetDateMin = leadDate
-                targetDateMax = datetime.date(leadDate.year, 2, 28)
+                #targetDateMax = datetime.date(leadDate.year, 2, 28)
+                targetDateMax = datetime.date(leadDate.year, 9, 30)
+
                 keepGoing = False
         
       
@@ -499,6 +522,7 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
                                                      series, order, \
                                     leadTimes + time[-1], periodicity = 365)
     
+        
     anomalyForecast, autocorrel =  dampedAnomalyForecast(time, anomalies, \
                                     leadTimes)
     
@@ -513,17 +537,19 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
     # Plots
     # -----
     
-    fig, ax = plt.subplots(3, 1, dpi = 300, figsize = (4, 9))
+    fig, ax = plt.subplots(3, 1, dpi = 300, figsize = (8, 12))
     
         
     # Show background forecast
     ax[1].plot(dates, background, "brown", label = "Background")
     ax[1].plot(datesLeadTimes, backgroundForecast, lw = 0.5, color = "brown",\
                   label = "Background forecast")
-    ax[1].fill_between(datesLeadTimes, backgroundForecast -  backgroundStd, \
-                                             backgroundForecast + \
-                                                 backgroundStd, \
-                                      color = "brown", alpha = 0.3, lw = 0)    
+    ax[1].fill_between(datesLeadTimes, backgroundForecast -  \
+                               1.96 * backgroundStd, \
+                                       backgroundForecast + \
+                               1.96 * backgroundStd, \
+                                      color = "brown", alpha = 0.3, lw = 0, \
+                                          label = "95% conf. interval")    
     
         
     
@@ -538,15 +564,20 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
     # Compute forecast std
     forecastStd = np.sqrt((autocorrel * backgroundStd[0] - backgroundStd) ** 2)
     
+    # Show raw forecast
     ax[0].plot(dates, series, color = "k", label = "Raw data")
     ax[0].plot(datesLeadTimes, forecast, lw = 0.5, color = "k", \
                  label = "Damped anomaly persistence forecast")
     ax[0].fill_between(datesLeadTimes,       forecast -  1.96 * forecastStd, \
                                              forecast +  1.96 * forecastStd, \
-                                             color = "k", alpha = 0.4, lw = 0)
+                                             color = "k", alpha = 0.4, \
+                                             label = "95% conf. interval", \
+                                             lw = 0)
+    ax[0].plot(dates + datesLeadTimes, np.nanmin(series) * \
+               np.ones(len(dates + datesLeadTimes)), color = "r", \
+                   linestyle = "--", \
+               label = "All time minimum so far")
     
-        
-
     
     for j, a in enumerate(ax):
         if j != 2:
@@ -573,9 +604,9 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
                        alpha = 0.2, label = "Target period")
         #print(targetDateMin, targetDateMax)
     
-        a.legend()
+        a.legend(loc = "upper left")
     
-    print(dateInit)
+
     
     fig.suptitle("Sea ice extent forecast")
     fig.tight_layout()
@@ -591,21 +622,21 @@ def forecast(hemi = "north", dateInit = None, getData = True, verif = False):
 # Run forecast
 # ------------
 #
-# Define initialization date (set to None for latest in sample)
+# Product
 dataIn = "OSISAF-v2p1"
-
+# Define initialization date (set to None for latest in sample)
 dateInit = None
-#dateInit = datetime.date(2020, 11, 30)
+#dateInit = datetime.date(2021, 5, 1)
 
 # Set hemisphere
-#hemi = "south"
-hemi = "north"
+hemi = "south"
+#hemi = "north"
 
 # Run the raw forecast
-
 outlook, _ = forecast(hemi = hemi, dateInit = dateInit)
 
-print("Raw outlook: " + str(np.round(outlook, 2)) + " million km2")
+print("Raw outlook for initial date " + str(dateInit) + ": " + \
+      str(np.round(outlook, 2)) + " million km2")
 
 # Post-processing
 # ---------------
@@ -624,7 +655,10 @@ print("Raw outlook: " + str(np.round(outlook, 2)) + " million km2")
 # If dateInit was set to None, fetch the information from the loaded Data
 if dateInit is None:
     dateInit = loadData(hemi)[-1][1]
-    
+
+print(dateInit)
+
+
 dayInit   = dateInit.day
 monthInit = dateInit.month
 yearInit  = dateInit.year
@@ -634,7 +668,7 @@ allOutlooks = list()
 allVerifOutlooks = list()
 allYears = list()
 
-for year in np.arange(1989, 2020):
+for year in np.arange(1989, yearInit):
     outlook, verifOutlook = forecast(hemi = hemi, dateInit = \
               datetime.date(year, monthInit, dayInit), \
               getData = False, verif = True)
@@ -649,14 +683,12 @@ for year in np.arange(1989, 2020):
 
 
 # Verification and bias correction.
+# ---------------------------------
 fig, axes = plt.subplots(1, 2, figsize = (10, 5), dpi = 300)# dpi)
     
 ax = axes[0]
+ax.set_title("Raw hindcasts")
 ax.grid()
-# if hemi == "north":
-#     ax.set_ylim(0.0, 8.0)
-# elif hemi == "south":
-#     ax.set_ylim(15.0, 22.0)
         
 ax.plot(allYears, allOutlooks, color = [1, 0.5, 0.0], marker = "s", 
         label = "Hindcasts")
@@ -664,6 +696,7 @@ ax.plot(allYears, allVerifOutlooks, color = [0.0, 0.0, 0.0], \
         marker = "s", 
         label = "Verification data")
 ax.set_ylabel("10$^6$ km$^2$")
+ax.set_ylim(bottom = 0.0)
 ax.legend()
     
     
@@ -673,13 +706,10 @@ ax.grid()
 
 
     
-ax.set_title("Verification and recalibration")
-# if hemi == "north":
-#     ax.set_xlim(2.0, 8.0)
-#     ax.set_ylim(2.0, 8.0)
-# elif hemi == "south":
-#     ax.set_xlim(17.0, 20.0)
-#     ax.set_ylim(17.0, 20.0)
+
+     
+ax.set_xlim(np.min(allOutlooks) * 0.9, np.max(allOutlooks) * 1.1)
+ax.set_ylim(np.min(allVerifOutlooks) * 0.9, np.max(allVerifOutlooks) * 1.1)
 ax.set_xlabel("Forecast [10$^6$ km$^2$]")
 ax.set_ylabel("Verification [10$^6$ km$^2$]")
 ax.scatter(allOutlooks, allVerifOutlooks, 200, marker = "s", \
@@ -688,7 +718,7 @@ ax.scatter(allOutlooks, allVerifOutlooks, 200, marker = "s", \
 [ax.text(   allOutlooks[j], allVerifOutlooks[j],  \
          str(allYears[j]), 
          color = "white", ha = "center", va = "center", fontsize = 5) \
-    for j in range(len(allOutlooks)  - 1)]
+    for j in range(len(allOutlooks))]
     
 
 # Regress forecasts on verification to determine recalibrated forecast
@@ -728,23 +758,24 @@ ax.fill_between(xx, fit - 1.96 * spred(xx), fit + 1.96 * spred(xx),
                 color = "green", alpha = 0.2, lw = 0, 
                 label = "Prediction\n95% confidence interval")
 
-# Display correlations
-ax.text(5.5, 3.5, "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
-    "\n(detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")")
+
 
 # Print re-processed forecast
-if hemi == "north":
-    xtext, ytext = 5.5, 2.5
-elif hemi == "south":
-    xtext, ytext = 19.0, 17.8
-    
-ax.text(xtext, ytext    , "This forecast:\n" + 
-        str(np.round(ahat * outlook + bhat, 2)) + 
-        " [" + str(np.round(ahat * outlook + bhat - 
-                            1.96 * spred(outlook), 2)) +  " - " +
-                str(np.round(ahat * outlook + bhat + 
+
+
+xtext = np.max(allOutlooks) * 0.7
+ytext = np.min(allOutlooks) * 1.1
+# Display correlations
+ax.set_title("Verification and recalibration\n" + 
+            "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
+         " (detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")" + \
+             "\nThis forecast: " + \
+        str(np.round(ahat * outlook + bhat, 2)) + \
+        " [" + str(np.round(ahat * outlook + bhat - \
+                            1.96 * spred(outlook), 2)) +  " - " + \
+                str(np.round(ahat * outlook + bhat + \
                             1.96 * spred(outlook), 2)) + \
-                            "]\n" + "$10^6$ km$^2$")
+                            "]" + " x $ 10^6$ km$^2$")
 
 ax.legend(loc = "upper left")
 
@@ -782,7 +813,7 @@ fig.savefig(directory + "/verif-postproc_order" + \
 # n+1) above highest percentile. If that percentile, it means 
 # breaking record high))
 
-percentiles = [0.0, 5.0, 10.0, 30.0, 70.0, 100.0]
+percentiles = [0.0, 10.0, 33.33, 66.67, 100.0]
 colors = [plt.cm.RdYlBu(int(255 / 100 * 0.5 * (percentiles[j - 1] + \
                      percentiles[j]))) for j in range(1, len(percentiles))]
 
@@ -808,10 +839,7 @@ mythreshs   = np.percentile(allVerifOutlooks, percentiles)
 
 for j in range(1, len(mythreshs)):
     xxtmp = np.linspace(mythreshs[j - 1], mythreshs[j], 10000)
-    ax.fill_between(xxtmp, scipy.stats.norm.pdf(xxtmp, mu, sig), 
-                color = colors[j - 1], alpha = 0.8 , lw = 0.0, \
-                  label = "Obs. " + str(int(percentiles[j - 1])) + 
-                  "-" + str(int(percentiles[j])) + " %")
+
     
     # Plot bars for extremes if requested
     if percentiles[j - 1] == 0.0:
@@ -832,7 +860,15 @@ for j in range(1, len(mythreshs)):
                 str(np.round(probmax * 100, 1)) + 
         " % ", va = "top", ha = "left", color = "blue", alpha = 0.8)
    
-    
+    prob= scipy.stats.norm.cdf(mythreshs[j], mu, sig) - \
+                scipy.stats.norm.cdf(mythreshs[j - 1], mu, sig)
+                
+    ax.fill_between(xxtmp, scipy.stats.norm.pdf(xxtmp, mu, sig), 
+                color = colors[j - 1], alpha = 0.8 , lw = 0.0, \
+                  label = "in obs. " + str(int(percentiles[j - 1])) + 
+                  "-" + str(int(percentiles[j])) + " %" + " [" + str(np.round(prob * 100, 1))+ " %]")
+        
+        
 # Display trend extrapolation forecast
 trend_fc = np.polyval(np.polyfit(range(len(allVerifOutlooks)), \
             allVerifOutlooks, order), len(allVerifOutlooks) + 1)
@@ -872,13 +908,16 @@ plt.close(fig)
 
 
 
-# # Time series of probability of various events happening
-# # ------------------------------------------------------
-# cdfs = scipy.stats.norm.cdf(mythreshs, mu, sig)
-# for j in range(len(percentiles)):
-#     myprobs = np.append(np.append(np.array(cdfs[0]), np.diff(cdfs)), \
-#                       np.array(1.0 - cdfs[-1]))
-    
+# Time series of probability of various events happening
+# ------------------------------------------------------
+#cdfs = scipy.stats.norm.cdf(mythreshs, mu, sig)
+#for j in range(len(percentiles)):
+#    myprobs = np.append(np.append(np.array(cdfs[0]), np.diff(cdfs)), \
+#                      np.array(1.0 - cdfs[-1]))
+  
+        
+#pe = list()
+
 # if mode == "oper":
 #     pe.append([inidate, myprobs])
 # else:

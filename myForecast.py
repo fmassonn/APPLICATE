@@ -30,7 +30,7 @@ np.random.seed(3)
 type_trend = ["Climatology", "Linear", "Quadratic", "Cubic"]
 order = 2
 
-global hemi; hemi = "north"
+#global hemi; hemi = "north"
 global dateRef; dateRef = datetime.date(1900, 1, 1)
 
 def downloadData(hemi = "north", dataSet = "OSISAF-v2p1"):
@@ -464,17 +464,17 @@ def forecast(hemi = "north", dateInit = None, getData = True, \
         leadDate = dateInit + datetime.timedelta(days = d)
         
         if hemi == "north":
-            if leadDate.month == 9 and leadDate.day == 1:
-                targetDateMin = leadDate
-                targetDateMax = datetime.date(leadDate.year, 9, 30)
+            if leadDate.month == 9 and leadDate.day == 30:
+                targetDateMin = datetime.date(leadDate.year, 9, 1)
+                targetDateMax = leadDate
                 keepGoing = False
     
         elif hemi == "south":
-            #if leadDate.month == 2 and leadDate.day == 1:
-            if leadDate.month == 9 and leadDate.day == 1:
-                targetDateMin = leadDate
-                #targetDateMax = datetime.date(leadDate.year, 2, 28)
-                targetDateMax = datetime.date(leadDate.year, 9, 30)
+            if leadDate.month == 2 and leadDate.day == 28:
+            #if leadDate.month == 9 and leadDate.day == 30:
+                #targetDateMin = datetime.date(leadDate.year, 9, 1)
+                targetDateMin = datetime.date(leadDate.year, 2, 1)
+                targetDateMax = leadDate
 
                 keepGoing = False
         
@@ -488,8 +488,9 @@ def forecast(hemi = "north", dateInit = None, getData = True, \
     # Remove all data past dateInit to make sure we are not using future
     # data to train the model. Just before doing this, we record the 
     # verification outlook to output it if asked
+
     if verif:
-        verifOutlook = np.mean(np.array([r[2] for r in rawData if \
+        verifOutlook = np.nanmean(np.array([r[2] for r in rawData if \
             r[1] >= targetDateMin and r[1] <= targetDateMax]))
     else:
         verifOutlook = np.nan
@@ -531,9 +532,7 @@ def forecast(hemi = "north", dateInit = None, getData = True, \
         
     outlook = np.mean([z[0] for z in zip(forecast, datesLeadTimes) \
                        if z[1] >= targetDateMin and z[1] <= targetDateMax])
-        
-
-    
+            
 
     # Plots
     # -----
@@ -627,21 +626,21 @@ def forecast(hemi = "north", dateInit = None, getData = True, \
 # ------------
 #
 # Product
-dataIn = "OSISAF-v2p1"
+#dataIn = "OSISAF-v2p1"
 dataIn = "NSIDC-G02135"
 # Define initialization date (set to None for latest in sample)
-dateInit = None
-#dateInit = datetime.date(2021, 5, 1)
+#dateInit = None
+dateInit = datetime.date(2022, 2, 19)
 
 # Set hemisphere
-hemi = "south"
-#hemi = "north"
+hemi = "south"#hemi = "north"
 
 # Run the raw forecast
-outlook, _ = forecast(hemi = hemi, dateInit = dateInit, dataSet = dataIn)
+thisOutlook, _ = forecast(hemi = hemi, dateInit = dateInit, dataSet = dataIn)
+
 
 print("Raw outlook for initial date " + str(dateInit) + ": " + \
-      str(np.round(outlook, 2)) + " million km2")
+      str(np.round(thisOutlook, 2)) + " million km2")
 
 # Post-processing
 # ---------------
@@ -684,7 +683,6 @@ for year in np.arange(1989, yearInit):
     allVerifOutlooks.append(verifOutlook)
     allYears.append(year)
     
-    
 
 
 # Verification and bias correction.
@@ -713,7 +711,7 @@ ax.grid()
     
 
      
-ax.set_xlim(np.min(allOutlooks) * 0.9, np.max(allOutlooks) * 1.1)
+ax.set_xlim(np.min([thisOutlook] + allOutlooks) * 0.9, np.max([thisOutlook] + allOutlooks) * 1.1)
 ax.set_ylim(np.min(allVerifOutlooks) * 0.9, np.max(allVerifOutlooks) * 1.1)
 ax.set_xlabel("Forecast [10$^6$ km$^2$]")
 ax.set_ylabel("Verification [10$^6$ km$^2$]")
@@ -775,23 +773,24 @@ ax.set_title("Verification and recalibration\n" +
             "$r$ = " + str(np.round(np.corrcoef(x, y)[0, 1], 2)) +
          " (detrended: " + str(np.round(np.corrcoef(xd, yd)[0, 1], 2)) + ")" + \
              "\nThis forecast: " + \
-        str(np.round(ahat * outlook + bhat, 2)) + \
-        " [" + str(np.round(ahat * outlook + bhat - \
-                            1.96 * spred(outlook), 2)) +  " - " + \
-                str(np.round(ahat * outlook + bhat + \
-                            1.96 * spred(outlook), 2)) + \
+        str(np.round(ahat * thisOutlook + bhat, 2)) + \
+        " [" + str(np.round(ahat * thisOutlook + bhat - \
+                            1.96 * spred(thisOutlook), 2)) +  " - " + \
+                str(np.round(ahat * thisOutlook + bhat + \
+                            1.96 * spred(thisOutlook), 2)) + \
                             "]" + " x $ 10^6$ km$^2$")
 
-ax.legend(loc = "upper left")
+
 
 lims = ax.get_xlim()
 
 ax.plot((-1e9, 1e9), (-1e9, 1e9), color = "k", lw = 1, label = "y = x")
-ax.plot((outlook, outlook), (-1e9, 1e9), "red", 
-        label = "This outlook")
+ax.plot((thisOutlook, thisOutlook), (-1e9, 1e9), "red", 
+        label = "Raw outlook")
 
 ax.set_xlim(lims[0], lims[1])
 
+ax.legend(loc = "upper left")
 
 directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
 if not os.path.exists(directory):
@@ -829,12 +828,12 @@ ax.grid()
 #     ax.set_xlim(2.0, 10.0)
 # elif hemi == "south":
 #     ax.set_xlim(15.0, 22.0)
-ax.set_ylim(-0.2, 1.5)
+
 ax.set_xlabel("Target mean sea ice extent [10$^6$ km$^2$]")
 
 # Best estimate
-mu = ahat * outlook + bhat
-sig= spred(outlook)
+mu = ahat * thisOutlook + bhat
+sig= spred(thisOutlook)
 
 ax.set_ylabel("Density [10$^6$ km$^2$]$^{-1}$")
 
@@ -883,7 +882,8 @@ ax.plot((trend_fc, trend_fc), (0, 1e9), color = "orange",
 
 ax.set_xlim(0.0, np.max(allVerifOutlooks) * 1.2)
 # Plot PDF
-ax.plot(xx, scipy.stats.norm.pdf(xx, mu, sig), color = "k", \
+pdfFit = scipy.stats.norm.pdf(xx, mu, sig)
+ax.plot(xx, pdfFit, color = "k", \
         label = "Forecast PDF")
 maxYvalue = np.max(scipy.stats.norm.pdf(xx, mu, sig))
     
@@ -899,7 +899,7 @@ ax.legend(ncol = 1, fontsize = 6)
 ax.set_title("Forecast and associated event probabilities\n(initialized "\
                                                     + str(dateInit) + ")")
 ax.set_axisbelow(True)
-
+ax.set_ylim(-0.3, np.max(pdfFit) * 1.1 )
 
 directory = "./figs/" + str(yearInit) + "/" + str(dateInit) + "/"
 if not os.path.exists(directory):

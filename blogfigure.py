@@ -114,7 +114,7 @@ with open("./data/" + filein, 'r') as csvfile:
 
 
 # Detect first and last years of the sample
-yearb = 1981 # First full year ; rawdata[0][0].year
+yearb = 1980 # First full year ; rawdata[0][0].year
 yeare = rawdata[-1][0].year - 1 # - 1  to not take ongoing years
 nyear = yeare - yearb + 1
 nday  = 365
@@ -143,31 +143,21 @@ for r in rawdata:
             data[row, col] = r[1]
 
 # Figure
-<<<<<<< Updated upstream
-plt.style.use('dark_background')
-fig, ax = plt.subplots(1, 1, figsize = (7, 4), dpi = dpi)
-ax = plt.axes(projection = '3d')
-ax.view_init(10, -70)
-#fig.set_facecolor("white")
-#ax.set_facecolor("black")
-xmin = np.min(np.nanmin(data[1:, :], axis = 1))
-xmax = np.max(np.nanmin(data[1:, :], axis = 1))
-for y in np.arange(yearb, yeare + 1):
-=======
+
 fig, ax = plt.subplots(1, 1, figsize = (4, 3), dpi = dpi)
 #fig.set_facecolor("white")
 plt.style.use('seaborn-deep')
 xmin = np.min(np.nanmin(data[1:-1, :], axis = 1))
 xmax = np.max(np.nanmin(data[1:-1, :], axis = 1))
-for y in np.arange(yearb + 1, yeare):
->>>>>>> Stashed changes
+for y in np.arange(yearb, yeare + 1):
+
     value = np.nanmin(data[y - yearb, :])
     color = plt.cm.RdBu(int((value - xmin) * 255 / (xmax - xmin)))[:3]
     days = np.arange(365)
     #ax.plot3D(days, (yeare - y) * np.ones(len(days)),  \
     #         data[y - yearb, :], color = color, \
     #             alpha = 0.2 + 0.8 * (y - yearb) / (yeare - yearb) )
-    ax.plot3D(days, (yeare - y) * np.ones(len(days)),  \
+    ax.plot(days,  \
              data[y - yearb, :], color = color)
     print(color)
     if y == 2012:
@@ -178,15 +168,7 @@ for y in np.arange(yearb + 1, yeare):
         col1980 = color
 
 # Legends
-<<<<<<< Updated upstream
-#ax.text(175, 1.4, "2012", color = col2012 )
-#ax.plot((220, 240), (2.0, 3.3), color = col2012, lw = 1)
-#ax.text(295, 1.4, "2020", color = col2020 )
-#ax.plot((290, 265), (2.0, 4.0), color = col2020, lw = 1)
-#ax.text(225, 10.4, "1980", color = col1980 )
-#ax.plot((240, 250), (10.0, 7.5), color = col1980, lw = 1)
 
-=======
 ax.text(175, 1.4, "2012", color = col2012 )
 ax.plot((220, 240), (2.0, 3.3), color = col2012, lw = 1)
 ax.text(295, 1.4, "2020", color = col2020 )
@@ -195,41 +177,34 @@ ax.text(225, 10.4, "1980", color = col1980 )
 ax.plot((240, 250), (10.0, 7.5), color = col1980, lw = 1)
 
 #ax.set_facecolor("white")
->>>>>>> Stashed changes
+
 # Ticks months
 ndpm = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 monnam = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 ndpmc = np.cumsum(np.array(ndpm))
-<<<<<<< Updated upstream
 
-#ax.text(370, 1, 0, "Figure: @FMassonnet. Data: NSIDC sea ice index", \
-#        color = [0.2, 0.2, 0.2], fontsize = 5, rotation = 90)
-
-=======
 ax.set_xticks(ndpmc)
 ax.set_xticklabels([m[0] + "  " for m in monnam], ha = "right")
 ax.set_xlim(1.0, 365.0)
 ax.set_ylabel(r"million square km", rotation = 90)
 ax.set_yticks([0, 5, 10, 15])
 ax.grid()
->>>>>>> Stashed changes
+
 #ax.yaxis.set_label_coords(-0.2,1.0)
 ax.set_ylim(0.0, 18.0)
-ax.set_zlim(0.0, 18.0)
-ax.set_zlabel("10$^6$ km$^2$")
 
-ax.set_xticks((1, 1 + 90, 1 + 180, 1 + 270, 365))
-ax.set_xticklabels(("Jan", "Apr", "Jul", "Oct", "Dec"))
 
-ax.set_yticks((0, 20, 40))
-ax.set_yticklabels(("2020",  "2000", "1980"))
 
+
+
+ax.set_title("Arctic sea ice extent")
 #ax.yaxis.label.set_color("white")
 #ax.zaxis.label.set_color("white")
 #plt.axis("off")
 
 fig.tight_layout()
-plt.savefig("./ArcticStripes.png")
+plt.savefig("./ArcticStripes.png", dpi = dpi)
+plt.savefig("./ArcticStripes.pdf")
 
 
 

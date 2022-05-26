@@ -15,7 +15,7 @@ import matplotlib.font_manager as fm
 
 prop = fm.FontProperties(fname="/Users/massonnetf/Library/Fonts/ProximaNova-Regular.otf")
 
-
+fac = 6 / 30 # The data was accumulated for 5-day periods (Mohamed e-mail 17 June 2021) so we multiply by fac to get daily counts
 
 def c(xin, direction = "to", ref = 1, shift = 0.5, alpha = 10):
     if type(xin) is int or type(xin) is np.int64 or type(xin) is np.float64:
@@ -45,13 +45,13 @@ def c(xin, direction = "to", ref = 1, shift = 0.5, alpha = 10):
     return xout
     
 
-datadir = "./data/ECMWF_Mohamed/"
+datadir = "./data/ECMWF_Mohamed_new/"
 
 
 # January
 month = ["january", "july"]
 
-fig, ax = plt.subplots(1, 1, dpi = 300, figsize = (8,5))
+fig, ax = plt.subplots(1, 1, dpi = 300, figsize = (9,6))
 
 ax.set_frame_on(False)
 #                     WINTER                   SUMMER
@@ -59,6 +59,7 @@ ax.set_frame_on(False)
 #            USED         USED
 colors = [["#3e6589", "#052542"], ["#F1BB46", "#CA4E00"]]
 
+year = 2019
 
 for jm, mon in enumerate(month):
     for jt, typ in enumerate(["sat", "conv"]):
@@ -68,12 +69,12 @@ for jm, mon in enumerate(month):
         den = list()
     
         with open(datadir + "density_" + typ + "_" + usage + "_" + \
-                  mon + "2020.txt", "r") as f:
+                  mon + str(year) + ".txt", "r") as f:
           for row in f:
             lattmp = float(row.split(" ")[0])
             dentmp = float(row.split(" ")[1])
             lat.append(lattmp)
-            den.append(dentmp) 
+            den.append(dentmp * fac) 
           
         lat = np.array(lat)
         den = np.array(den)
@@ -100,8 +101,9 @@ for jm, mon in enumerate(month):
             for k in range(len(lat)):
                 if lat[k] > 0:
                   ax.text(0, lat[k], str(int(lat[k] - 2.5)) + \
-                          " - " + str(int(lat[k] + 2.5)), \
+                          "-" + str(int(lat[k] + 2.5)), \
                               va = "center", ha = "center", color = [0.5, 0.5, 0.5], fontproperties=prop)
+    #print(den[lat>=60])
     del lat, den
 
 ax.text(0.0, 91, "Latitude °N", ha = "center", fontproperties=prop)
@@ -109,69 +111,59 @@ ax.text(0.0, 91, "Latitude °N", ha = "center", fontproperties=prop)
 
 # WINTER Legend
 
-ax.fill_between((-c(9000), -c(5000)), (18, 18), (20, 20), \
+ax.fill_between((-c(150000), -c(85000)), (18, 18), (20, 20), \
                 color = colors[0][0], lw = 0.1  )
-ax.fill_between((-c(5000), -c(3000)), (18, 18), (20, 20),  \
+ax.fill_between((-c(85000), -c(50000)), (18, 18), (20, 20),  \
                 facecolor = "white", edgecolor = colors[0][0], \
                     hatch = "////////", lw = 0.1  )    
-ax.text(-c(15000), 18, "Satellite", fontweight = "bold", \
+ax.text(-c(160000), 18, "Satellite", fontweight = "bold", \
          color = colors[0][0], fontsize = 12, ha = "right", fontproperties=prop)
-ax.fill_between((-c(9000), -c(5000)), (15, 15), (17, 17),  \
+ax.fill_between((-c(150000), -c(85000)), (15, 15), (17, 17),  \
                 lw = 0.1 ,color = colors[0][1] )    
-ax.fill_between((-c(5000), -c(3000)), (15, 15), (17, 17),  \
+ax.fill_between((-c(85000), -c(50000)), (15, 15), (17, 17),  \
                 facecolor = "white", edgecolor = colors[0][1], \
                     hatch = "////////", lw = 0.1  )    
-ax.text(-c(15000), 15, "Conventional", fontweight = "bold", \
+ax.text(-c(160000), 15, "Conventional", fontweight = "bold", \
          color = colors[0][1], fontsize = 12, ha = "right", fontproperties=prop)
-ax.text(-c(10000), 8, "WINTER", fontweight = "bold", \
+ax.text(-c(50000), 8, "WINTER", fontweight = "bold", \
          color = [0.2, 0.2, 0.2], fontsize = 18, ha = "right", fontproperties=prop)
 
-ax.text(-c(9000), 21, "Used", rotation = 90, \
+ax.text(-c(160000), 21, "Used", rotation = 90, \
         fontproperties = prop, va = "bottom", color = [0.2, 0.2, 0.2])
 
-ax.text(-c(5000), 21, "All", rotation = 90, \
+ax.text(-c(80000), 21, "All", rotation = 90, \
         fontproperties = prop, va = "bottom", color = [0.2, 0.2, 0.2])
 
     
 # SUMMER legend
-ax.fill_between((c(5000), c(3000)), (18, 18), (20, 20), \
+ax.fill_between((c(50000), c(90000)), (18, 18), (20, 20), \
                 color = colors[1][0], lw = 0.1  )
-ax.fill_between((c(9000), c(5000)), (18, 18), (20, 20),  \
+ax.fill_between((c(90000), c(150000)), (18, 18), (20, 20),  \
                 facecolor = "white", edgecolor = colors[1][0], \
                     hatch = "////////" , lw = 0.1  )    
-ax.text(c(15000), 18, "Satellite", fontweight = "bold", \
+ax.text(c(160000), 18, "Satellite", fontweight = "bold", \
          color = colors[1][0], fontsize = 12, ha = "left", fontproperties=prop)
-ax.fill_between((c(5000), c(3000)), (15, 15), (17, 17),  \
+ax.fill_between((c(50000), c(90000)), (15, 15), (17, 17),  \
                 lw = 0.1, color = colors[1][1] )    
-ax.fill_between((c(9000), c(5000)), (15, 15), (17, 17),  \
+ax.fill_between((c(90000), c(150000)), (15, 15), (17, 17),  \
                 facecolor = "white", edgecolor = colors[1][1], \
                     hatch = "////////", lw = 0.1 )    
-ax.text(c(15000), 15, "Conventional", fontweight = "bold", \
+ax.text(c(160000), 15, "Conventional", fontweight = "bold", \
          color = colors[1][1], fontsize = 12, ha = "left", fontproperties=prop)
-ax.text(c(10000), 8, "SUMMER", fontweight = "bold", \
+ax.text(c(60000), 8, "SUMMER", fontweight = "bold", \
          color = [0.2, 0.2, 0.2], fontsize = 18, ha = "left", fontproperties=prop)
 
-ax.text(c(3000), 21, "Used", rotation = 90, \
+ax.text(c(50000), 21, "Used", rotation = 90, \
         fontproperties = prop, va = "bottom", color = [0.2, 0.2, 0.2])
 
-ax.text(c(6000), 21, "All", rotation = 90, \
+ax.text(c(100000), 21, "All", rotation = 90, \
         fontproperties = prop, va = "bottom", color = [0.2, 0.2, 0.2])
-# ax.fill_between((c(150), c(160)), (38, 38), (40, 40),  color = colors[1][0] )    
-# ax.text(c(170), 38.0, "Satellite", fontweight = "bold", \
-#         color = colors[1][0], fontsize = 12, ha = "left", fontproperties=prop)
-# ax.fill_between((150, 160), (35, 35), (37, 37),  color = colors[1][1] )    
-# ax.text(c(170), 35.0, "Conventional", fontweight = "bold", \
-#         color = colors[1][1], fontsize = 12, ha = "left", fontproperties=prop)
 
-# ax.text(c(145), 30.0, "SUMMER", fontweight = "bold", \
-#         color = colors[1][0], fontsize = 18, ha = "left", fontproperties=prop)
-
-#ax.grid()
 ax.set_ylabel("Latitude [°N]", fontproperties=prop)
 ax.set_xlabel("Observation density (# / 1000 km$^{2}$)", fontproperties=prop)
 
 
-myTicks = np.array([ 0, 1, 10, 100, 1000, 10000]) 
+myTicks = np.array([ 0, 1, 10, 100, 1000, 10000, 10000]) 
 
 ax.set_xticks(np.concatenate((-c(myTicks), \
                                 c(myTicks))))
@@ -192,7 +184,7 @@ for label in ax.get_xticklabels():
     label.set_fontproperties(prop)
     
 #ax.set_xlim(-c(myTicks[-1]), c(myTicks[-1]))
-ax.set_xlim(-c(1000000), c(1000000))
+ax.set_xlim(-c(5000000), c(5000000))
 ax.plot((0.0, 0.0), (0.0, 90), "w-")
 ax.set_ylim(0.0, 90.0)
 #ax.legend()

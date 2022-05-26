@@ -16,16 +16,28 @@ from netCDF4 import Dataset
 import pyresample
 
 
+# IMPORTANT - REVIEW CAREFULLY
 # 
-filein = "grid_c2Sgpod_z_sn_201204.nc"
-varin = "sea_ice_thickness"
-varout = "vt_i"  #rfb -- freeboard, at_i -- concentration, vt_i -- thickness
+#filein = "grid_c2Sgpod_z_sn_201204.nc"
+#varin = "sea_ice_thickness"
+#varin_unc = varin + "_unc"
+#varout = "vt_i"  #rfb -- freeboard, at_i -- concentration, vt_i -- thickness
+
+filein = "ice_conc_nh_ease2-250_cdr-v2p0_201204301200.nc"
+varin  = "ice_conc"
+varin_unc = "total_standard_error"
+varout = "at_i"
+
+
+# Scaling factor
+scalef = 100.0 
+
 
 #=============================================
 
 f = Dataset(filein, mode = "r")
-field = f.variables[varin][0, :, :]
-field_sd = f.variables[varin + "_unc"][0, :, :]
+field = f.variables[varin][0, :, :] / scalef 
+field_sd = f.variables[varin_unc][0, :, :] / scalef
 lat = f.variables["lat"][:]
 lon = f.variables["lon"][:]
 f.close()

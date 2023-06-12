@@ -629,11 +629,12 @@ def forecast(hemi = "north", dateInit = None, getData = True, \
 #dataIn = "OSISAF-v2p1"
 dataIn = "NSIDC-G02135"
 # Define initialization date (set to None for latest in sample)
-#dateInit = None
-dateInit = datetime.date(2022, 2, 19)
+dateInit = None
+#dateInit = datetime.date(2022, 7, 4)
 
 # Set hemisphere
-hemi = "south"#hemi = "north"
+#hemi = "south"
+hemi = "north"
 
 # Run the raw forecast
 thisOutlook, _ = forecast(hemi = hemi, dateInit = dateInit, dataSet = dataIn)
@@ -880,7 +881,8 @@ trend_fc = np.polyval(np.polyfit(range(len(allVerifOutlooks)), \
 ax.plot((trend_fc, trend_fc), (0, 1e9), color = "orange",
         label = str(type_trend[order]) + " extrapolation")\
 
-ax.set_xlim(0.0, np.max(allVerifOutlooks) * 1.2)
+ax.set_xlim(np.min(allVerifOutlooks) * 0.8, np.max(allVerifOutlooks) * 1.2)
+
 # Plot PDF
 pdfFit = scipy.stats.norm.pdf(xx, mu, sig)
 ax.plot(xx, pdfFit, color = "k", \
